@@ -43,6 +43,8 @@ struct Parms {
   float cy;
 } parms = {0.1, 0.1};
 
+int isPrime(int n);
+
 int main (int argc, char *argv[])
 {
 void inidat(), prtdat(), update();
@@ -250,3 +252,17 @@ for (iy = ny-1; iy >= 0; iy--) {
   }
 fclose(fp);
 }
+
+/* Checkis if a given integer is a prime number */
+int isPrime(int n){
+    int i;
+    if (n==2)
+        return 1;
+    if (n%2==0)
+        return 0;
+    for (i=3;i*i<=n;i+=2)
+        if (n%i==0) 
+            return 0;
+    return 1;
+}
+
