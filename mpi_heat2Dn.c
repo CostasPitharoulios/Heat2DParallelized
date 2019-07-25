@@ -86,9 +86,6 @@ int main (int argc, char *argv[]){
             exit(22);
         }
 
-        /* TODO ------ Compute blockx, blocky ---- */
-
-
         /* Initialize grid */
         printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
         printf("Initializing grid and writing initial.dat file...\n");
@@ -113,8 +110,8 @@ int main (int argc, char *argv[]){
         //printf("Each block is %d x %d \n",blockx,blocky);
 
         ////////////////////////////////
-        MPI_Finalize();/////////////////
-        return 0;///////////////////////
+        //MPI_Finalize();/////////////////
+        //return 0;///////////////////////
         ////////////////////////////////
 
       /* Distribute work to workers.*/ 
@@ -172,8 +169,8 @@ int main (int argc, char *argv[]){
     /************************* workers code **********************************/
     if (taskid != MASTER){
         ////////////////////////////////
-        MPI_Finalize();/////////////////
-        return 0;///////////////////////
+        //MPI_Finalize();/////////////////
+        //return 0;///////////////////////
         ////////////////////////////////
         //
       /* Initialize everything - including the borders - to zero */
