@@ -52,7 +52,7 @@ int main (int argc, char *argv[]){
     int	taskid,                     /* this task's unique id */
         numworkers,                 /* number of worker processes */
         numtasks,                   /* number of tasks */
-        averow,rows,offset,extra,   /* for sending rows of data */
+        averow,rows,columns,/*offset,*/offsetX, offsetY,/*extra,*/   /* for sending rows of data */
         dest, source,               /* to - from for message send-receive */
         left,right,up,down,        /* neighbor tasks */
         msgtype,                    /* for message types */
@@ -114,15 +114,42 @@ int main (int argc, char *argv[]){
         //return 0;///////////////////////
         ////////////////////////////////
 
+
+//=========== PEIRAKSA APO EDW MEXRI EKEI POU LEW ============
       /* Distribute work to workers.*/ 
-      averow = NXPROB/numworkers;
-      extra = NXPROB%numworkers;
-      offset = 0;
+   ///   averow = NXPROB/numworkers;
+   ///   extra = NXPROB%numworkers;
+      offsetX = 0;
+      offsetY = 0;
       for (i=1; i<=numworkers; i++)
       {
-         rows = (i <= extra) ? averow+1 : averow; 
+         ///rows = (i <= extra) ? averow+1 : averow; 
+	// rows and columns that every single sub-block of the whole matrix has
+	 rows = blockx;
+	 columns = blocky;
          /* Tell each worker who its neighbors are, since they must exchange */
          /* data with each other. */  
+
+	 if (i <= NXPROB) // if this is the first row
+	    up = NONE;
+	 else
+	    up = i - NXPROB;
+
+	 if (i >= ((NYPROB-1) * NXPROB + 1)) //if this is the last row
+	    down = NONE;
+	 else
+	    down = i + NXPROB;
+
+	 if (i%NXPROB == 1)	// if this is the first column
+	    left = NONE;
+	 else
+	    left = i-1;
+
+	 if (i%NXPROB == 0)	//if this is the last column
+	    right = NONE;
+	 else
+	    right = i+1;
+/*
          if (i == 1) 
             left = NONE;
          else
@@ -131,6 +158,11 @@ int main (int argc, char *argv[]){
             right = NONE;
          else
             right = i + 1;
+*/
+
+
+//=============MEXRI EDW PEIRAKSA================
+
          /*  Now send startup information to each worker  */
          dest = i;
          MPI_Send(&offset, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
@@ -141,7 +173,8 @@ int main (int argc, char *argv[]){
                   MPI_COMM_WORLD);
          printf("Sent to task %d: rows= %d offset= %d ",dest,rows,offset);
          printf("left= %d right= %d\n",left,right);
-         offset = offset + rows;
+         offsetX = offsetX + columns;  //PEIRAKSA KAI AUTA NA EINAI ETOIMA
+	 offsetY = offsetY + rows;	//PEIRAKSA KAI AUTA NA EINAI ETOIMA
       }
       /* Now wait for results from all worker tasks */
       for (i=1; i<=numworkers; i++)
