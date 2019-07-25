@@ -38,6 +38,8 @@
 #define DONE        4                  /* message tag */
 #define MASTER      0                  /* taskid of first process */
 
+/* Neo sxolio */
+
 struct Parms { 
   float cx;
   float cy;
