@@ -29,8 +29,8 @@
 #define NXPROB      20                 /* x dimension of problem grid */
 #define NYPROB      20                 /* y dimension of problem grid */
 #define STEPS       100                /* number of time steps */
-#define MAXWORKER   8                  /* maximum number of worker tasks */
-#define MINWORKER   3                  /* minimum number of worker tasks */
+//#define MAXWORKER   8                  /* maximum number of worker tasks */
+//#define MINWORKER   3                  /* minimum number of worker tasks */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
 #define RTAG        3                  /* message tag */
@@ -44,49 +44,51 @@ struct Parms {
 } parms = {0.1, 0.1};
 
 int isPrime(int n);
-
-int main (int argc, char *argv[])
-{
 void inidat(), prtdat(), update();
-float  u[2][NXPROB][NYPROB];        /* array for grid */
-int	taskid,                     /* this task's unique id */
-	numworkers,                 /* number of worker processes */
-	numtasks,                   /* number of tasks */
-	averow,rows,offset,extra,   /* for sending rows of data */
-	dest, source,               /* to - from for message send-receive */
-	left,right,        /* neighbor tasks */
-	msgtype,                    /* for message types */
-	rc,start,end,               /* misc */
-	i,ix,iy,iz,it;              /* loop variables */
-MPI_Status status;
+
+int main (int argc, char *argv[]){
+    float u[2][NXPROB][NYPROB];        /* array for grid */
+    int	taskid,                     /* this task's unique id */
+        numworkers,                 /* number of worker processes */
+        numtasks,                   /* number of tasks */
+        averow,rows,offset,extra,   /* for sending rows of data */
+        dest, source,               /* to - from for message send-receive */
+        left,right,up,down,        /* neighbor tasks */
+        msgtype,                    /* for message types */
+        rc,start,end,               /* misc */
+        xdim, ydim,                 /* dimensions of grid partition (e.x. 4x4) */
+        blockx, blocky,             /* dimensions of each block (e.x. 20x12) */
+        i,ix,iy,iz,it;              /* loop variables */
+    MPI_Status status;
 
 
-/* First, find out my taskid and how many tasks are running */
-   MPI_Init(&argc,&argv);
-   MPI_Comm_size(MPI_COMM_WORLD,&numtasks);
-   MPI_Comm_rank(MPI_COMM_WORLD,&taskid);
-   numworkers = numtasks-1;
+    /* First, find out my taskid and how many tasks are running */
+    MPI_Init(&argc,&argv);
+    MPI_Comm_size(MPI_COMM_WORLD,&numtasks);
+    MPI_Comm_rank(MPI_COMM_WORLD,&taskid);
+    numworkers = numtasks-1;
 
-   if (taskid == MASTER) {
-      /************************* master code *******************************/
-      /* Check if numworkers is within range - quit if not */
-      if ((numworkers > MAXWORKER) || (numworkers < MINWORKER)) {
-         printf("ERROR: the number of tasks must be between %d and %d.\n",
-                 MINWORKER+1,MAXWORKER+1);
-         printf("Quitting...\n");
-         MPI_Abort(MPI_COMM_WORLD, rc);
-         exit(1);
-         }
-      printf ("Starting mpi_heat2D with %d worker tasks.\n", numworkers);
+    if (taskid == MASTER) {
+        /************************* Master code *******************************/
 
-      /* Initialize grid */
-      printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
-      printf("Initializing grid and writing initial.dat file...\n");
-      inidat(NXPROB, NYPROB, u);
-      prtdat(NXPROB, NYPROB, u, "initial.dat");
+        if ((isPrime(numworkers))){
+            printf("ERROR: the number of workers is prime (%d).\n",numworkers);
+            MPI_Abort(MPI_COMM_WORLD, 22);
+            exit(22);
+        }
+        printf ("Starting mpi_heat2D with %d worker tasks.\n", numworkers);
 
-      /* Distribute work to workers.  Must first figure out how many rows to */
-      /* send and what to do with extra rows.  */
+        /* TODO check Y*X % n  ==0  */
+
+        /* TODO ------ Compute xdim, ydim, blockx, blocky ---- */
+
+        /* Initialize grid */
+        printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
+        printf("Initializing grid and writing initial.dat file...\n");
+        inidat(NXPROB, NYPROB, u);
+        prtdat(NXPROB, NYPROB, u, "initial.dat");
+
+      /* Distribute work to workers.*/ 
       averow = NXPROB/numworkers;
       extra = NXPROB%numworkers;
       offset = 0;
