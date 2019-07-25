@@ -25,9 +25,10 @@
 #include "mpi.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
-#define NXPROB      20                 /* x dimension of problem grid */
-#define NYPROB      20                 /* y dimension of problem grid */
+#define NXPROB      80                 /* x dimension of problem grid */
+#define NYPROB      64                 /* y dimension of problem grid */
 #define STEPS       100                /* number of time steps */
 //#define MAXWORKER   8                  /* maximum number of worker tasks */
 //#define MINWORKER   3                  /* minimum number of worker tasks */
@@ -58,7 +59,7 @@ int main (int argc, char *argv[]){
         rc,start,end,               /* misc */
         xdim, ydim,                 /* dimensions of grid partition (e.x. 4x4) */
         blockx, blocky,             /* dimensions of each block (e.x. 20x12) */
-        i,ix,iy,iz,it;              /* loop variables */
+        i,x,ix,iy,iz,it;              /* loop variables */
     MPI_Status status;
 
 
@@ -78,15 +79,43 @@ int main (int argc, char *argv[]){
         }
         printf ("Starting mpi_heat2D with %d worker tasks.\n", numworkers);
 
-        /* TODO check Y*X % n  ==0  */
+        /* If the number of cells is not divisible by numworkers, abort */
+        if ((NXPROB*NYPROB)%numworkers){
+            printf("ERROR: number of cells is not divisible by the number of workers\n");
+            MPI_Abort(MPI_COMM_WORLD, 22);
+            exit(22);
+        }
 
-        /* TODO ------ Compute xdim, ydim, blockx, blocky ---- */
+        /* TODO ------ Compute blockx, blocky ---- */
+
 
         /* Initialize grid */
         printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
         printf("Initializing grid and writing initial.dat file...\n");
         inidat(NXPROB, NYPROB, u);
         prtdat(NXPROB, NYPROB, u, "initial.dat");
+
+        /* Find the dimentions of the partitioned grid (e.x. 4 x 4) */
+        /* xdim and ydim are guarented to be found, since we have checked that
+         * numworkers is not prime. */
+        for (x=sqrt(numworkers); x>=1; x--){
+            if (numworkers % x == 0){
+                xdim = x;
+                ydim = numworkers/x;
+                break;
+            }
+        }
+        printf("The grid will part into a %d x %d block grid.\n",xdim,ydim);
+
+        /* Compute the length and height of each block */
+        blockx = NXPROB / xdim;
+        blocky = NYPROB / ydim;
+        //printf("Each block is %d x %d \n",blockx,blocky);
+
+        ////////////////////////////////
+        MPI_Finalize();/////////////////
+        return 0;///////////////////////
+        ////////////////////////////////
 
       /* Distribute work to workers.*/ 
       averow = NXPROB/numworkers;
@@ -140,9 +169,13 @@ int main (int argc, char *argv[]){
 
 
 
-   /************************* workers code **********************************/
-   if (taskid != MASTER) 
-   {
+    /************************* workers code **********************************/
+    if (taskid != MASTER){
+        ////////////////////////////////
+        MPI_Finalize();/////////////////
+        return 0;///////////////////////
+        ////////////////////////////////
+        //
       /* Initialize everything - including the borders - to zero */
       for (iz=0; iz<2; iz++)
          for (ix=0; ix<NXPROB; ix++) 
