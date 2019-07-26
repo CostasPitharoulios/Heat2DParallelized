@@ -52,13 +52,13 @@ int main (int argc, char *argv[]){
     int	taskid,                     /* this task's unique id */
         numworkers,                 /* number of worker processes */
         numtasks,                   /* number of tasks */
-        averow,rows,columns,/*offset,*/offsetX, offsetY,/*extra,*/   /* for sending rows of data */
+        /*averow,offset,*/offsetX, offsetY,/*extra,*/   /* for sending rows of data */
         dest, source,               /* to - from for message send-receive */
         left,right,up,down,        /* neighbor tasks */
         msgtype,                    /* for message types */
         rc,start,end,               /* misc */
         xdim, ydim,                 /* dimensions of grid partition (e.x. 4x4) */
-        blockx, blocky,             /* dimensions of each block (e.x. 20x12) */
+        rows, columns,             /* number of rows/columns of each block (e.x. 20x12) */
         i,x,ix,iy,iz,it;              /* loop variables */
     MPI_Status status;
 
@@ -105,8 +105,8 @@ int main (int argc, char *argv[]){
         printf("The grid will part into a %d x %d block grid.\n",xdim,ydim);
 
         /* Compute the length and height of each block */
-        blockx = NXPROB / xdim;
-        blocky = NYPROB / ydim;
+        rows = NXPROB / xdim;
+        columns = NYPROB / ydim;
         //printf("Each block is %d x %d \n",blockx,blocky);
 
         ////////////////////////////////
@@ -119,63 +119,60 @@ int main (int argc, char *argv[]){
       /* Distribute work to workers.*/ 
    ///   averow = NXPROB/numworkers;
    ///   extra = NXPROB%numworkers;
-      offsetX = 0;
-      offsetY = 0;
-      for (i=1; i<=numworkers; i++)
-      {
+        offsetX = 0;
+        offsetY = 0;
+        for (i=1; i<=numworkers; i++){
          ///rows = (i <= extra) ? averow+1 : averow; 
-	// rows and columns that every single sub-block of the whole matrix has
-	 rows = blockx;
-	 columns = blocky;
-         /* Tell each worker who its neighbors are, since they must exchange */
-         /* data with each other. */  
+             /* Tell each worker who its neighbors are, since they must exchange */
+             /* data with each other. */  
 
-	 if (i <= NXPROB) // if this is the first row
-	    up = NONE;
-	 else
-	    up = i - NXPROB;
+            if (i <= NXPROB) // if this is the first row
+                up = NONE;
+            else
+                up = i - NXPROB;
 
-	 if (i >= ((NYPROB-1) * NXPROB + 1)) //if this is the last row
-	    down = NONE;
-	 else
-	    down = i + NXPROB;
+            if (i >= ((NYPROB-1) * NXPROB + 1)) //if this is the last row
+               down = NONE;
+            else
+               down = i + NXPROB;
 
-	 if (i%NXPROB == 1)	// if this is the first column
-	    left = NONE;
-	 else
-	    left = i-1;
+            if (i%NXPROB == 1)	// if this is the first column
+                left = NONE;
+            else
+                left = i-1;
 
-	 if (i%NXPROB == 0)	//if this is the last column
-	    right = NONE;
-	 else
-	    right = i+1;
-/*
-         if (i == 1) 
-            left = NONE;
-         else
-            left = i - 1;
-         if (i == numworkers)
-            right = NONE;
-         else
-            right = i + 1;
-*/
+            if (i%NXPROB == 0)	//if this is the last column
+                right = NONE;
+            else
+                right = i+1;
+    /*
+             if (i == 1) 
+                left = NONE;
+             else
+                left = i - 1;
+             if (i == numworkers)
+                right = NONE;
+             else
+                right = i + 1;
+    */
 
 
-//=============MEXRI EDW PEIRAKSA================
+    //=============MEXRI EDW PEIRAKSA================
 
-         /*  Now send startup information to each worker  */
-         dest = i;
-         MPI_Send(&offset, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
-         MPI_Send(&rows, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
-         MPI_Send(&left, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
-         MPI_Send(&right, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
-         MPI_Send(&u[0][offset][0], rows*NYPROB, MPI_FLOAT, dest, BEGIN, 
-                  MPI_COMM_WORLD);
-         printf("Sent to task %d: rows= %d offset= %d ",dest,rows,offset);
-         printf("left= %d right= %d\n",left,right);
-         offsetX = offsetX + columns;  //PEIRAKSA KAI AUTA NA EINAI ETOIMA
-	 offsetY = offsetY + rows;	//PEIRAKSA KAI AUTA NA EINAI ETOIMA
-      }
+             /*  Now send startup information to each worker  */
+            dest = i;
+            MPI_Send(&offset, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            MPI_Send(&rows, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            MPI_Send(&left, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            MPI_Send(&right, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            MPI_Send(&u[0][offset][0], rows*NYPROB, MPI_FLOAT, dest, BEGIN, 
+                     MPI_COMM_WORLD);
+            printf("Sent to task %d: rows= %d offset= %d ",dest,rows,offset);
+            printf("left= %d right= %d\n",left,right);
+            offsetX = offsetX + columns;  //PEIRAKSA KAI AUTA NA EINAI ETOIMA
+            offsetY = offsetY + rows;	//PEIRAKSA KAI AUTA NA EINAI ETOIMA
+        }
+
       /* Now wait for results from all worker tasks */
       for (i=1; i<=numworkers; i++)
       {
