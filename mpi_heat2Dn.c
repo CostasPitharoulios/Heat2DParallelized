@@ -29,9 +29,7 @@
 
 #define NXPROB      80                 /* x dimension of problem grid */
 #define NYPROB      64                 /* y dimension of problem grid */
-#define STEPS       100                /* number of time steps */
-//#define MAXWORKER   8                  /* maximum number of worker tasks */
-//#define MINWORKER   3                  /* minimum number of worker tasks */
+#define STEPS       1 /*100*/            /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
 #define RTAG        3                  /* message tag */
@@ -107,20 +105,20 @@ int main (int argc, char *argv[]){
         /* Compute the length and height of each block */
         columns = NXPROB / xdim;
         rows = NYPROB / ydim;
-        //printf("Each block is %d x %d.\n",blockx,blocky);
+        printf("Each block is %d x %d.\n",columns,rows);
 
 //=========== PEIRAKSA APO EDW MEXRI EKEI POU LEW ============
       /* Distribute work to workers.*/ 
    ///   averow = NXPROB/numworkers;
    ///   extra = NXPROB%numworkers;
-        offsetX = 0;
-        offsetY = 0;
+        //offsetX = 0;
+        //offsetY = 0;
         for (i=1; i<=numworkers; i++){
          ///rows = (i <= extra) ? averow+1 : averow; 
 
             /* Compute the coordinates of the up left corner of the block */
             offsetX = ((i-1)%xdim)*columns; /* TODO isws na htan pio oikonomiko na ekmetaleutoume oti eimaste se for loop opws eipe o kwstas */
-            offsetY = ((i-1)/ydim)*rows;
+            offsetY = ((i-1)/xdim)*rows;
 
             /* Find the neighbours of this block */
             if (i <= xdim) // if this is the first row
@@ -142,7 +140,6 @@ int main (int argc, char *argv[]){
                 right = NONE;
             else
                 right = i+1;
-            printf("--%d: point:(%d,%d), left:%d, right:%d, up:%d, down:%d\n",i,offsetX,offsetY,left,right,up,down);
     /*
              if (i == 1) 
                 left = NONE;
@@ -158,18 +155,19 @@ int main (int argc, char *argv[]){
     //=============MEXRI EDW PEIRAKSA================
 
              /*  Now send startup information to each worker  */
-#if 0
             dest = i;
-            MPI_Send(&offset, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            MPI_Send(&offsetX, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            MPI_Send(&offsetY, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            MPI_Send(&columns, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&rows, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&left, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&right, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
-            MPI_Send(&u[0][offset][0], rows*NYPROB, MPI_FLOAT, dest, BEGIN, 
-                     MPI_COMM_WORLD);
-            printf("Sent to task %d: rows= %d offset= %d ",dest,rows,offset);
-            printf("left= %d right= %d\n",left,right);
-#endif
-            //offsetX = (offsetX + columns)%;  //PEIRAKSA KAI AUTA NA EINAI ETOIMA
+            MPI_Send(&up, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            MPI_Send(&down, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            //MPI_Send(&u[0][offset][0], rows*NYPROB, MPI_FLOAT, dest, BEGIN, MPI_COMM_WORLD);
+            //printf("Sent to task %d: rows= %d offset= %d ",dest,rows,offset);
+            //printf("left= %d right= %d\n",left,right);
+            //offsetX = offsetX + columns;  //PEIRAKSA KAI AUTA NA EINAI ETOIMA
             //offsetY = offsetY + rows;	//PEIRAKSA KAI AUTA NA EINAI ETOIMA
         }
 
@@ -202,7 +200,6 @@ int main (int argc, char *argv[]){
     /************************* workers code **********************************/
     if (taskid != MASTER){
 
-#if 0 
       /* Initialize everything - including the borders - to zero */
       for (iz=0; iz<2; iz++)
          for (ix=0; ix<NXPROB; ix++) 
@@ -212,12 +209,18 @@ int main (int argc, char *argv[]){
       /* Receive my offset, rows, neighbors and grid partition from master */
       source = MASTER;
       msgtype = BEGIN;
-      MPI_Recv(&offset, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+      MPI_Recv(&offsetX, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+      MPI_Recv(&offsetY, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+      MPI_Recv(&columns, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
       MPI_Recv(&rows, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
       MPI_Recv(&left, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
       MPI_Recv(&right, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-      MPI_Recv(&u[0][offset][0], rows*NYPROB, MPI_FLOAT, source, msgtype, 
-               MPI_COMM_WORLD, &status);
+      MPI_Recv(&up, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+      MPI_Recv(&down, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+      //MPI_Recv(&u[0][offset][0], rows*NYPROB, MPI_FLOAT, source, msgtype, MPI_COMM_WORLD, &status);
+
+      printf("LOG: Process %d: oint:(%d,%d), left:%d, right:%d, up:%d, down:%d\n",taskid,offsetX,offsetY,left,right,up,down);
+#if 0 
 
       /* Determine border elements.  Need to consider first and last columns. */
       /* Obviously, row 0 can't exchange with row 0-1.  Likewise, the last */
