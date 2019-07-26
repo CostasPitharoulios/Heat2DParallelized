@@ -145,6 +145,7 @@ int main (int argc, char *argv[]){
                 right = NONE;
             else
                 right = i+1;
+            printf("--%d: point:(%d,%d), left:%d, right:%d, up:%d, down:%d\n",i,offsetX,offsetY,left,right,up,down);
     /*
              if (i == 1) 
                 left = NONE;
@@ -160,6 +161,7 @@ int main (int argc, char *argv[]){
     //=============MEXRI EDW PEIRAKSA================
 
              /*  Now send startup information to each worker  */
+            /*
             dest = i;
             MPI_Send(&offset, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&rows, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
@@ -169,10 +171,13 @@ int main (int argc, char *argv[]){
                      MPI_COMM_WORLD);
             printf("Sent to task %d: rows= %d offset= %d ",dest,rows,offset);
             printf("left= %d right= %d\n",left,right);
+            */
             offsetX = offsetX + columns;  //PEIRAKSA KAI AUTA NA EINAI ETOIMA
             offsetY = offsetY + rows;	//PEIRAKSA KAI AUTA NA EINAI ETOIMA
         }
 
+
+#if 0 
       /* Now wait for results from all worker tasks */
       for (i=1; i<=numworkers; i++)
       {
@@ -190,6 +195,7 @@ int main (int argc, char *argv[]){
       prtdat(NXPROB, NYPROB, &u[0][0][0], "final.dat");
       printf("Click on MORE button to view initial/final states.\n");
       printf("Click on EXIT button to quit program.\n");
+#endif
       
       MPI_Finalize();
    }   /* End of master code */
@@ -198,11 +204,8 @@ int main (int argc, char *argv[]){
 
     /************************* workers code **********************************/
     if (taskid != MASTER){
-        ////////////////////////////////
-        //MPI_Finalize();/////////////////
-        //return 0;///////////////////////
-        ////////////////////////////////
-        //
+
+#if 0 
       /* Initialize everything - including the borders - to zero */
       for (iz=0; iz<2; iz++)
          for (ix=0; ix<NXPROB; ix++) 
@@ -262,8 +265,10 @@ int main (int argc, char *argv[]){
       MPI_Send(&rows, 1, MPI_INT, MASTER, DONE, MPI_COMM_WORLD);
       MPI_Send(&u[iz][offset][0], rows*NYPROB, MPI_FLOAT, MASTER, DONE, 
                MPI_COMM_WORLD);
+#endif
       MPI_Finalize();
    }
+    return 0;
 }
 
 
