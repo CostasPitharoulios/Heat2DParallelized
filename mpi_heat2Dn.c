@@ -93,7 +93,7 @@ int main (int argc, char *argv[]){
         prtdat(NXPROB, NYPROB, u, "initial.dat");
 
         /* Find the dimentions of the partitioned grid (e.x. 4 x 4) */
-        /* xdim and ydim are guarented to be found, since we have checked that
+        /* xdim,ydim are guarented to be found, since we have checked that
          * numworkers is not prime. */
         for (x=sqrt(numworkers); x>=1; x--){
             if (numworkers % x == 0){
@@ -105,15 +105,9 @@ int main (int argc, char *argv[]){
         printf("The grid will part into a %d x %d block grid.\n",xdim,ydim);
 
         /* Compute the length and height of each block */
-        rows = NXPROB / xdim;
-        columns = NYPROB / ydim;
-        //printf("Each block is %d x %d \n",blockx,blocky);
-
-        ////////////////////////////////
-        //MPI_Finalize();/////////////////
-        //return 0;///////////////////////
-        ////////////////////////////////
-
+        columns = NXPROB / xdim;
+        rows = NYPROB / ydim;
+        //printf("Each block is %d x %d.\n",blockx,blocky);
 
 //=========== PEIRAKSA APO EDW MEXRI EKEI POU LEW ============
       /* Distribute work to workers.*/ 
@@ -123,25 +117,28 @@ int main (int argc, char *argv[]){
         offsetY = 0;
         for (i=1; i<=numworkers; i++){
          ///rows = (i <= extra) ? averow+1 : averow; 
-             /* Tell each worker who its neighbors are, since they must exchange */
-             /* data with each other. */  
 
-            if (i <= NXPROB) // if this is the first row
+            /* Compute the coordinates of the up left corner of the block */
+            offsetX = ((i-1)%xdim)*columns; /* TODO isws na htan pio oikonomiko na ekmetaleutoume oti eimaste se for loop opws eipe o kwstas */
+            offsetY = ((i-1)/ydim)*rows;
+
+            /* Find the neighbours of this block */
+            if (i <= xdim) // if this is the first row
                 up = NONE;
             else
-                up = i - NXPROB;
+                up = i - xdim;
 
-            if (i >= ((NYPROB-1) * NXPROB + 1)) //if this is the last row
+            if (i >= ((ydim-1) * xdim + 1)) //if this is the last row
                down = NONE;
             else
-               down = i + NXPROB;
+               down = i + xdim;
 
-            if (i%NXPROB == 1)	// if this is the first column
+            if (i%xdim == 1)	// if this is the first column
                 left = NONE;
             else
                 left = i-1;
 
-            if (i%NXPROB == 0)	//if this is the last column
+            if (i%xdim == 0)	//if this is the last column
                 right = NONE;
             else
                 right = i+1;
@@ -161,7 +158,7 @@ int main (int argc, char *argv[]){
     //=============MEXRI EDW PEIRAKSA================
 
              /*  Now send startup information to each worker  */
-            /*
+#if 0
             dest = i;
             MPI_Send(&offset, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&rows, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
@@ -171,9 +168,9 @@ int main (int argc, char *argv[]){
                      MPI_COMM_WORLD);
             printf("Sent to task %d: rows= %d offset= %d ",dest,rows,offset);
             printf("left= %d right= %d\n",left,right);
-            */
-            offsetX = offsetX + columns;  //PEIRAKSA KAI AUTA NA EINAI ETOIMA
-            offsetY = offsetY + rows;	//PEIRAKSA KAI AUTA NA EINAI ETOIMA
+#endif
+            //offsetX = (offsetX + columns)%;  //PEIRAKSA KAI AUTA NA EINAI ETOIMA
+            //offsetY = offsetY + rows;	//PEIRAKSA KAI AUTA NA EINAI ETOIMA
         }
 
 
