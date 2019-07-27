@@ -27,8 +27,8 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define NXPROB      80                 /* x dimension of problem grid */
-#define NYPROB      64                 /* y dimension of problem grid */
+#define NXPROB      8                 /* x dimension of problem grid */
+#define NYPROB      8                 /* y dimension of problem grid */
 #define STEPS       1 /*100*/            /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
@@ -65,7 +65,7 @@ int main (int argc, char *argv[]){
     MPI_Init(&argc,&argv);
     MPI_Comm_size(MPI_COMM_WORLD,&numtasks);
     MPI_Comm_rank(MPI_COMM_WORLD,&taskid);
-    numworkers = numtasks-1;
+    numworkers = numtasks;
 
     if (taskid == MASTER) {
         /************************* Master code *******************************/
@@ -113,53 +113,44 @@ int main (int argc, char *argv[]){
    ///   extra = NXPROB%numworkers;
         //offsetX = 0;
         //offsetY = 0;
-        for (i=1; i<=numworkers; i++){
+        for (i=1; i<numworkers; i++){
          ///rows = (i <= extra) ? averow+1 : averow; 
 
             /* Compute the coordinates of the up left corner of the block */
-            offsetX = ((i-1)%xdim)*columns; /* TODO isws na htan pio oikonomiko na ekmetaleutoume oti eimaste se for loop opws eipe o kwstas */
-            offsetY = ((i-1)/xdim)*rows;
+            //offsetX = ((i-1)%xdim)*columns; /* TODO isws na htan pio oikonomiko na ekmetaleutoume oti eimaste se for loop opws eipe o kwstas */
+            //offsetY = ((i-1)/xdim)*rows;
 
             /* Find the neighbours of this block */
-            if (i <= xdim) // if this is the first row
-                up = NONE;
+            if (i < xdim) // if this is the first row
+                up = MPI_PROC_NULL;
             else
                 up = i - xdim;
 
-            if (i >= ((ydim-1) * xdim + 1)) //if this is the last row
-               down = NONE;
+            if (i >= ((ydim-1) * xdim)) //if this is the last row
+               down = MPI_PROC_NULL;
             else
                down = i + xdim;
 
-            if (i%xdim == 1)	// if this is the first column
-                left = NONE;
+            if (i%xdim == 0)	// if this is the first column
+                left = MPI_PROC_NULL;
             else
                 left = i-1;
 
-            if (i%xdim == 0)	//if this is the last column
-                right = NONE;
+            if (i%xdim == 3)	//if this is the last column
+                right = MPI_PROC_NULL;
             else
                 right = i+1;
-    /*
-             if (i == 1) 
-                left = NONE;
-             else
-                left = i - 1;
-             if (i == numworkers)
-                right = NONE;
-             else
-                right = i + 1;
-    */
+
+            printf("LOG: Process %d: left:%d, right:%d, up:%d, down:%d\n",i,left,right,up,down);
 
 
-    //=============MEXRI EDW PEIRAKSA================
-
-             /*  Now send startup information to each worker  */
+            /*  Now send startup information to each worker  */
+            /*TODO isws kai auta prepei na ginoun ISend */
             dest = i;
-            MPI_Send(&offsetX, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
-            MPI_Send(&offsetY, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
-            MPI_Send(&columns, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
-            MPI_Send(&rows, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            //MPI_Send(&offsetX, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            //MPI_Send(&offsetY, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            //MPI_Send(&columns, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            //MPI_Send(&rows, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&left, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&right, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&up, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
@@ -170,6 +161,14 @@ int main (int argc, char *argv[]){
             //offsetX = offsetX + columns;  //PEIRAKSA KAI AUTA NA EINAI ETOIMA
             //offsetY = offsetY + rows;	//PEIRAKSA KAI AUTA NA EINAI ETOIMA
         }
+
+        /* Master does its part of the work */
+        offsetX = 0;
+        offsetY = 0;
+        left = MPI_PROC_NULL;
+        right = 1;
+        up = MPI_PROC_NULL;
+        down = xdim;
 
 
 #if 0 
@@ -209,17 +208,16 @@ int main (int argc, char *argv[]){
       /* Receive my offset, rows, neighbors and grid partition from master */
       source = MASTER;
       msgtype = BEGIN;
-      MPI_Recv(&offsetX, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-      MPI_Recv(&offsetY, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-      MPI_Recv(&columns, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-      MPI_Recv(&rows, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+      //MPI_Recv(&offsetX, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+      //MPI_Recv(&offsetY, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+      //MPI_Recv(&columns, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+      //MPI_Recv(&rows, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
       MPI_Recv(&left, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
       MPI_Recv(&right, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
       MPI_Recv(&up, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
       MPI_Recv(&down, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
       //MPI_Recv(&u[0][offset][0], rows*NYPROB, MPI_FLOAT, source, msgtype, MPI_COMM_WORLD, &status);
 
-      printf("LOG: Process %d: oint:(%d,%d), left:%d, right:%d, up:%d, down:%d\n",taskid,offsetX,offsetY,left,right,up,down);
 #if 0 
 
       /* Determine border elements.  Need to consider first and last columns. */
