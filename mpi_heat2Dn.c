@@ -43,10 +43,12 @@ struct Parms {
 } parms = {0.1, 0.1};
 
 int isPrime(int n);
-void inidat(), prtdat(), update();
+void inidat(), prtdat(), update(), myprint();
+int malloc2darr();
 
 int main (int argc, char *argv[]){
-    float u[2][NXPROB][NYPROB];        /* array for grid */
+    float u[2][NXPROB][NYPROB],        /* array for grid */
+          **local[2];
     int	taskid,                     /* this task's unique id */
         numworkers,                 /* number of worker processes */
         numtasks,                   /* number of tasks */
@@ -57,7 +59,7 @@ int main (int argc, char *argv[]){
         rc,start,end,               /* misc */
         xdim, ydim,                 /* dimensions of grid partition (e.x. 4x4) */
         rows, columns,             /* number of rows/columns of each block (e.x. 20x12) */
-        i,x,ix,iy,iz,it;              /* loop variables */
+        i,j,x,ix,iy,iz,it;              /* loop variables */
     MPI_Status status;
 
 
@@ -89,6 +91,7 @@ int main (int argc, char *argv[]){
         printf("Initializing grid and writing initial.dat file...\n");
         inidat(NXPROB, NYPROB, u);
         prtdat(NXPROB, NYPROB, u, "initial.dat");
+        myprint(NXPROB, NYPROB, u);
 
         /* Find the dimentions of the partitioned grid (e.x. 4 x 4) */
         /* xdim,ydim are guarented to be found, since we have checked that
@@ -107,10 +110,9 @@ int main (int argc, char *argv[]){
         rows = NYPROB / ydim;
         printf("Each block is %d x %d.\n",columns,rows);
 
-//=========== PEIRAKSA APO EDW MEXRI EKEI POU LEW ============
-      /* Distribute work to workers.*/ 
-   ///   averow = NXPROB/numworkers;
-   ///   extra = NXPROB%numworkers;
+        /* Distribute work to workers.*/ 
+   ///  averow = NXPROB/numworkers;
+   ///  extra = NXPROB%numworkers;
         //offsetX = 0;
         //offsetY = 0;
         for (i=1; i<numworkers; i++){
@@ -141,7 +143,6 @@ int main (int argc, char *argv[]){
             else
                 right = i+1;
 
-            printf("LOG: Process %d: left:%d, right:%d, up:%d, down:%d\n",i,left,right,up,down);
 
 
             /*  Now send startup information to each worker  */
@@ -149,8 +150,8 @@ int main (int argc, char *argv[]){
             dest = i;
             //MPI_Send(&offsetX, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             //MPI_Send(&offsetY, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
-            //MPI_Send(&columns, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
-            //MPI_Send(&rows, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            MPI_Send(&columns, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            MPI_Send(&rows, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&left, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&right, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&up, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
@@ -163,62 +164,74 @@ int main (int argc, char *argv[]){
         }
 
         /* Master does its part of the work */
-        offsetX = 0;
-        offsetY = 0;
+        //offsetX = 0;
+        //offsetY = 0;
         left = MPI_PROC_NULL;
         right = 1;
         up = MPI_PROC_NULL;
         down = xdim;
 
+    }else{
+        /*************** workers code *****************/
+
+        /* Initialize everything - including the borders - to zero */
+        for (iz=0; iz<2; iz++)
+            for (ix=0; ix<NXPROB; ix++) 
+                for (iy=0; iy<NYPROB; iy++) 
+                    u[iz][ix][iy] = 0.0;
+
+        /* Receive my offset, rows, neighbors and grid partition from master */
+        source = MASTER; msgtype = BEGIN;
+        //MPI_Recv(&offsetX, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+        //MPI_Recv(&offsetY, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+        MPI_Recv(&columns, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+        MPI_Recv(&rows, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+        MPI_Recv(&left, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+        MPI_Recv(&right, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+        MPI_Recv(&up, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+        MPI_Recv(&down, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+    }
+    printf("LOG: Process %d: left:%d, right:%d, up:%d, down:%d\n",taskid,left,right,up,down);
+
+    malloc2darr(&local[0], columns, rows);
+
+    int sizes[2]    = {NXPROB, NYPROB};         /* global size */
+    int subsizes[2] = {columns, rows};          /* local size */
+    int starts[2]   = {0,0};                    /* where this one starts */
+
+    /* Apo edw kai katw to pou vazw rows kai pou collumns einai amfivola */
+    MPI_Datatype type, subarrtype;
+    MPI_Type_create_subarray(2, sizes, subsizes, starts, MPI_ORDER_C, MPI_FLOAT, &type);
+    MPI_Type_create_resized(type, 0, columns*sizeof(float), &subarrtype);
+    MPI_Type_commit(&subarrtype);
+
+    float *globalptr=NULL;
+    if (taskid == MASTER) globalptr = &(u[0][0][0]);
+
+    /* Scatter array to all processes */
+    int sendcounts[columns*rows];
+    int displs[columns*rows];
+    
+    if (taskid == Master){
+        for (i=0; i<columns*rows; i++) sendcounts[i]=1;
+        int disp = 0;
+        for (i=0; i<columns; i++){
+            for (j=0; j<rows; j++){
+                displs[i*rows+j] = disp;
+                disp +=1;
+            }
+            disp += (rows-1)*rows;
+        }
+    }
+    /* mexri edw */
+
+    MPI_Scatterv(globalptr, sendcounts, displs, subarrtype, &(u[0][0][0]),kati, MPI_FLOAT, 0, MPI_COMM_WORLD);
+
+
 
 #if 0 
-      /* Now wait for results from all worker tasks */
-      for (i=1; i<=numworkers; i++)
-      {
-         source = i;
-         msgtype = DONE;
-         MPI_Recv(&offset, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, 
-                  &status);
-         MPI_Recv(&rows, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-         MPI_Recv(&u[0][offset][0], rows*NYPROB, MPI_FLOAT, source,
-                  msgtype, MPI_COMM_WORLD, &status);
-      }
-
-      /* Write final output, call X graph and finalize MPI */
-      printf("Writing final.dat file and generating graph...\n");
-      prtdat(NXPROB, NYPROB, &u[0][0][0], "final.dat");
-      printf("Click on MORE button to view initial/final states.\n");
-      printf("Click on EXIT button to quit program.\n");
-#endif
-      
-      MPI_Finalize();
-   }   /* End of master code */
-
-
-
-    /************************* workers code **********************************/
-    if (taskid != MASTER){
-
-      /* Initialize everything - including the borders - to zero */
-      for (iz=0; iz<2; iz++)
-         for (ix=0; ix<NXPROB; ix++) 
-            for (iy=0; iy<NYPROB; iy++) 
-               u[iz][ix][iy] = 0.0;
-
-      /* Receive my offset, rows, neighbors and grid partition from master */
-      source = MASTER;
-      msgtype = BEGIN;
-      //MPI_Recv(&offsetX, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-      //MPI_Recv(&offsetY, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-      //MPI_Recv(&columns, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-      //MPI_Recv(&rows, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-      MPI_Recv(&left, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-      MPI_Recv(&right, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-      MPI_Recv(&up, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-      MPI_Recv(&down, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-      //MPI_Recv(&u[0][offset][0], rows*NYPROB, MPI_FLOAT, source, msgtype, MPI_COMM_WORLD, &status);
-
-#if 0 
+    if ( taskid!=MASTER){
+    /* workers code */
 
       /* Determine border elements.  Need to consider first and last columns. */
       /* Obviously, row 0 can't exchange with row 0-1.  Likewise, the last */
@@ -263,9 +276,9 @@ int main (int argc, char *argv[]){
       MPI_Send(&rows, 1, MPI_INT, MASTER, DONE, MPI_COMM_WORLD);
       MPI_Send(&u[iz][offset][0], rows*NYPROB, MPI_FLOAT, MASTER, DONE, 
                MPI_COMM_WORLD);
-#endif
-      MPI_Finalize();
    }
+#endif
+    MPI_Finalize();
     return 0;
 }
 
@@ -331,3 +344,48 @@ int isPrime(int n){
     return 1;
 }
 
+/* TODO delete this func before we paradwsoume */
+void myprint(int nx, int ny, float *u1) {
+    int ix, iy;
+    for (iy = ny-1; iy >= 0; iy--) {
+      for (ix = 0; ix <= nx-1; ix++) {
+        printf("%6.1f", *(u1+ix*ny+iy));
+        if (ix != nx-1) 
+          printf(" ");
+        else
+          printf("\n");
+        }
+    }
+}
+
+
+
+int malloc2darr(float ***array, int n, int m) {
+
+    /* allocate the n*m contiguous items */
+    float *p = (float *)malloc(n*m*sizeof(float));
+    if (!p) return -1;
+
+    /* allocate the row pointers into the memory */
+    (*array) = (float **)malloc(n*sizeof(float*));
+    if (!(*array)) {
+        free(p);
+        return -1;
+    }
+
+    /* set up the pointers into the contiguous memory */
+    for (int i=0; i<n; i++)
+        (*array)[i] = &(p[i*m]);
+
+    return 0;
+}
+
+int free2darr(float ***array) {
+    /* free the memory - the first element of the array is at the start */
+    free(&((*array)[0][0]));
+
+    /* free the pointers into the memory */
+    free(*array);
+
+    return 0;
+}
