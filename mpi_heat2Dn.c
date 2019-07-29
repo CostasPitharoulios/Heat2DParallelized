@@ -48,7 +48,7 @@ int malloc2darr();
 
 int main (int argc, char *argv[]){
     float u[2][NXPROB][NYPROB],        /* array for grid */
-          **local[2];
+          **local;                  /* TODO: **local[2]*/
     int	taskid,                     /* this task's unique id */
         numworkers,                 /* number of worker processes */
         numtasks,                   /* number of tasks */
@@ -91,7 +91,7 @@ int main (int argc, char *argv[]){
         printf("Initializing grid and writing initial.dat file...\n");
         inidat(NXPROB, NYPROB, u);
         prtdat(NXPROB, NYPROB, u, "initial.dat");
-        myprint(NXPROB, NYPROB, u);
+        myprint(NXPROB, NYPROB, u[0]);
 
         /* Find the dimentions of the partitioned grid (e.x. 4 x 4) */
         /* xdim,ydim are guarented to be found, since we have checked that
@@ -193,13 +193,12 @@ int main (int argc, char *argv[]){
     }
     printf("LOG: Process %d: left:%d, right:%d, up:%d, down:%d\n",taskid,left,right,up,down);
 
-    malloc2darr(&local[0], columns, rows);
+    malloc2darr(&local, columns, rows);
 
     int sizes[2]    = {NXPROB, NYPROB};         /* global size */
     int subsizes[2] = {columns, rows};          /* local size */
     int starts[2]   = {0,0};                    /* where this one starts */
 
-    /* Apo edw kai katw to pou vazw rows kai pou collumns einai amfivola */
     MPI_Datatype type, subarrtype;
     MPI_Type_create_subarray(2, sizes, subsizes, starts, MPI_ORDER_C, MPI_FLOAT, &type);
     MPI_Type_create_resized(type, 0, columns*sizeof(float), &subarrtype);
@@ -209,24 +208,32 @@ int main (int argc, char *argv[]){
     if (taskid == MASTER) globalptr = &(u[0][0][0]);
 
     /* Scatter array to all processes */
-    int sendcounts[columns*rows];
-    int displs[columns*rows];
+    int sendcounts[xdim*ydim];
+    int displs[xdim*ydim];
     
-    if (taskid == Master){
-        for (i=0; i<columns*rows; i++) sendcounts[i]=1;
+    if (taskid == MASTER){
+        for (i=0; i<xdim*ydim; i++) sendcounts[i]=1;
         int disp = 0;
-        for (i=0; i<columns; i++){
-            for (j=0; j<rows; j++){
-                displs[i*rows+j] = disp;
+        for (i=0; i<xdim; i++){
+            for (j=0; j<ydim; j++){
+                displs[i*ydim+j] = disp; /* h' mhpws xdim */
                 disp +=1;
             }
-            disp += (rows-1)*rows;
+            disp += (columns-1)*xdim; /* h' rows, ydim klp */
         }
     }
-    /* mexri edw */
 
-    MPI_Scatterv(globalptr, sendcounts, displs, subarrtype, &(u[0][0][0]),kati, MPI_FLOAT, 0, MPI_COMM_WORLD);
+    MPI_Scatterv(globalptr, sendcounts, displs, subarrtype, &(u[0][0][0]),
+            NXPROB*NYPROB/(xdim*ydim), MPI_FLOAT, 0, MPI_COMM_WORLD);
 
+
+    for ( i=0; i<numtasks; i++){
+        if (taskid == i){
+            printf("===========%d=========\n",i);
+            myprint(columns,rows,local);
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
 
 
 #if 0 
