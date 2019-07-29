@@ -43,7 +43,7 @@ struct Parms {
 } parms = {0.1, 0.1};
 
 int isPrime(int n);
-void inidat(), prtdat(), update(), myprint();
+void inidat(), prtdat(), update(), myprint(), DUMMYDUMDUM();
 int malloc2darr();
 
 int main (int argc, char *argv[]){
@@ -89,10 +89,10 @@ int main (int argc, char *argv[]){
         /* Initialize grid */
         printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
         printf("Initializing grid and writing initial.dat file...\n");
-        inidat(NXPROB, NYPROB, u);
+        DUMMYDUMDUM(NXPROB, NYPROB, u); /* TODO TODO TODO */
         prtdat(NXPROB, NYPROB, u, "initial.dat");
-        for (j=0; j<NYPROB; j++){
-            for (ix=0; ix<NXPROB; ix++)
+        for (ix=0; ix<NXPROB; ix++){
+            for (j=0; j<NYPROB; j++)
                 printf("%6.1f ", u[0][ix][j]);
             printf("\n");
         }
@@ -111,13 +111,11 @@ int main (int argc, char *argv[]){
         printf("The grid will part into a %d x %d block grid.\n",xdim,ydim);
 
         /* Compute the length and height of each block */
-        columns = NXPROB / xdim;
-        rows = NYPROB / ydim;
-        printf("Each block is %d x %d.\n",columns,rows);
+        rows = NXPROB / xdim;
+        columns = NYPROB / ydim;
+        printf("Each block is %d x %d.\n",rows,columns);
 
         /* Distribute work to workers.*/ 
-   ///  averow = NXPROB/numworkers;
-   ///  extra = NXPROB%numworkers;
         //offsetX = 0;
         //offsetY = 0;
         for (i=1; i<numworkers; i++){
@@ -128,22 +126,22 @@ int main (int argc, char *argv[]){
             //offsetY = ((i-1)/xdim)*rows;
 
             /* Find the neighbours of this block */
-            if (i < xdim) // if this is the first row
+            if (i < ydim) // if this is the first row
                 up = MPI_PROC_NULL;
             else
-                up = i - xdim;
+                up = i - ydim;
 
-            if (i >= ((ydim-1) * xdim)) //if this is the last row
+            if (i >= ((xdim-1) * ydim)) //if this is the last row
                down = MPI_PROC_NULL;
             else
-               down = i + xdim;
+               down = i + ydim;
 
-            if (i%xdim == 0)	// if this is the first column
+            if (i%ydim == 0)	// if this is the first column
                 left = MPI_PROC_NULL;
             else
                 left = i-1;
 
-            if (i%xdim == 3)	//if this is the last column
+            if (i%ydim == 3)	//if this is the last column
                 right = MPI_PROC_NULL;
             else
                 right = i+1;
@@ -174,7 +172,7 @@ int main (int argc, char *argv[]){
         left = MPI_PROC_NULL;
         right = 1;
         up = MPI_PROC_NULL;
-        down = xdim;
+        down = ydim;
 
     }else{
         /*************** workers code *****************/
@@ -198,15 +196,15 @@ int main (int argc, char *argv[]){
     }
     printf("LOG: Process %d: left:%d, right:%d, up:%d, down:%d\n",taskid,left,right,up,down);
 
-    malloc2darr(&local, columns, rows);
+    malloc2darr(&local, rows, columns);
 
     int sizes[2]    = {NXPROB, NYPROB};         /* global size */
-    int subsizes[2] = {columns, rows};          /* local size */
+    int subsizes[2] = {rows, columns};          /* local size */
     int starts[2]   = {0,0};                    /* where this one starts */
 
     MPI_Datatype type, subarrtype;
     MPI_Type_create_subarray(2, sizes, subsizes, starts, MPI_ORDER_C, MPI_FLOAT, &type);
-    MPI_Type_create_resized(type, 0, columns*sizeof(float), &subarrtype);
+    MPI_Type_create_resized(type, 0, columns*sizeof(float), &subarrtype); /* h columns */
     MPI_Type_commit(&subarrtype);
 
     float *globalptr=NULL;
@@ -222,13 +220,13 @@ int main (int argc, char *argv[]){
 
         /* Determine the starting point of every task's data */
         int disp = 0;
-        for (i=0; i<ydim; i++){
-            for (j=0; j<xdim; j++){
+        for (i=0; i<xdim; i++){
+            for (j=0; j<ydim; j++){
                 //printf("displs[%d]=%d\n",i*ydim+j,disp);
-                displs[i*ydim+j] = disp; /* h' mhpws xdim */
+                displs[i*xdim+j] = disp; /* h' mhpws xdim */
                 disp +=1;
             }
-            disp += (rows-1)*ydim; /* h' rows, ydim klp */
+            disp += (rows-1)*xdim; /* h' rows, ydim klp */
         }
     }
 
@@ -246,8 +244,8 @@ int main (int argc, char *argv[]){
     for ( i=0; i<numtasks; i++){
         if (taskid == i){
             printf("=========== To kommati tou %d =========\n",i);
-            for (j=0; j<rows; j++){
-                for (ix=0; ix<columns; ix++)
+            for (ix=0; ix<rows; ix++){
+                for (j=0; j<columns; j++)
                     printf("%.1f ", local[ix][j]);
                 printf("\n");
             }
@@ -414,4 +412,14 @@ int free2darr(float ***array) {
     free(*array);
 
     return 0;
+}
+
+/* TODO delete kai authn */
+void DUMMYDUMDUM(int nx, int ny, float *u) {
+int ix, iy;
+int n=0;
+
+for (ix = 0; ix <= nx-1; ix++) 
+  for (iy = 0; iy <= ny-1; iy++)
+     *(u+ix*ny+iy) = n++;
 }
