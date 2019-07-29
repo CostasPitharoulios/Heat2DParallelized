@@ -208,33 +208,47 @@ int main (int argc, char *argv[]){
     if (taskid == MASTER) globalptr = &(u[0][0][0]);
 
     /* Scatter array to all processes */
-    int sendcounts[xdim*ydim];
-    int displs[xdim*ydim];
+    int *sendcounts = (int*)malloc(sizeof(int)*xdim*ydim);
+    int *displs = (int*)malloc(sizeof(int)*xdim*ydim);
     
     if (taskid == MASTER){
-        for (i=0; i<xdim*ydim; i++) sendcounts[i]=1;
+        /* Every process has one piece */
+        for (i=0; i<xdim*ydim; i++) sendcounts[i]=1; 
+
+        /* Determine the starting point of every task's data */
         int disp = 0;
-        for (i=0; i<xdim; i++){
-            for (j=0; j<ydim; j++){
+        for (i=0; i<ydim; i++){
+            for (j=0; j<xdim; j++){
+                //printf("displs[%d]=%d\n",i*ydim+j,disp);
                 displs[i*ydim+j] = disp; /* h' mhpws xdim */
                 disp +=1;
             }
-            disp += (columns-1)*xdim; /* h' rows, ydim klp */
+            disp += (columns-1)*ydim; /* h' rows, ydim klp */
         }
     }
 
-    MPI_Scatterv(globalptr, sendcounts, displs, subarrtype, &(u[0][0][0]),
-            NXPROB*NYPROB/(xdim*ydim), MPI_FLOAT, 0, MPI_COMM_WORLD);
+    if (taskid == 0){
+        printf("displs=[ \n");
+        for (i=0; i<ydim*xdim; i++){
+                printf("%d ",displs[i]);
+        }
+        printf("]\n");
+    }
+
+    MPI_Scatterv(globalptr, sendcounts, displs, subarrtype, &(local[0][0]), columns*rows, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
 
 
     for ( i=0; i<numtasks; i++){
         if (taskid == i){
-            printf("===========%d=========\n",i);
-            myprint(columns,rows,local);
+            printf("=========== To kommati tou %d =========\n",i);
+            for (ix=0; ix<columns; ix++){
+                for (j=0; j<rows; j++)
+                    printf("%.1f ", local[ix][j]);
+                printf("\n");
+            }
         }
         MPI_Barrier(MPI_COMM_WORLD);
     }
-
 
 #if 0 
     if ( taskid!=MASTER){
