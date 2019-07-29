@@ -27,7 +27,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define NXPROB      10                 /* x dimension of problem grid */
+#define NXPROB      12                 /* x dimension of problem grid */
 #define NYPROB      8                 /* y dimension of problem grid */
 #define STEPS       1 /*100*/            /* number of time steps */
 #define BEGIN       1                  /* message tag */
@@ -59,7 +59,7 @@ int main (int argc, char *argv[]){
         rc,start,end,               /* misc */
         xdim, ydim,                 /* dimensions of grid partition (e.x. 4x4) */
         rows, columns,             /* number of rows/columns of each block (e.x. 20x12) */
-        i,j,x,ix,iy,iz,it;              /* loop variables */
+        i,j,x,y,ix,iy,iz,it;              /* loop variables */
     MPI_Status status;
 
 
@@ -94,14 +94,14 @@ int main (int argc, char *argv[]){
         for (ix=0; ix<NXPROB; ix++){
             for (j=0; j<NYPROB; j++)
                 printf("%6.1f ", u[0][ix][j]);
-            printf("\n");
+            printf("\n\n");
         }
         //myprint(NXPROB, NYPROB, u[0]);
 
         /* Find the dimentions of the partitioned grid (e.x. 4 x 4) */
         /* xdim,ydim are guarented to be found, since we have checked that
          * numworkers is not prime. */
-        for (x=sqrt(numworkers); x>=1; x--){
+        for (x=sqrt(numworkers) + 1; x>=1; x--){
             if (numworkers % x == 0){
                 xdim = x;
                 ydim = numworkers/x;
@@ -223,7 +223,7 @@ int main (int argc, char *argv[]){
         for (i=0; i<xdim; i++){
             for (j=0; j<ydim; j++){
                 //printf("displs[%d]=%d\n",i*ydim+j,disp);
-                displs[i*xdim+j] = disp; /* h' mhpws xdim */
+                displs[i*ydim+j] = disp; /* h' mhpws xdim */
                 disp +=1;
             }
             disp += (rows-1)*xdim; /* h' rows, ydim klp */
@@ -238,6 +238,7 @@ int main (int argc, char *argv[]){
         printf("]\n");
     }
 
+
     MPI_Scatterv(globalptr, sendcounts, displs, subarrtype, &(local[0][0]), columns*rows, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
 
 
@@ -247,7 +248,7 @@ int main (int argc, char *argv[]){
             for (ix=0; ix<rows; ix++){
                 for (j=0; j<columns; j++)
                     printf("%.1f ", local[ix][j]);
-                printf("\n");
+                printf("\n\n");
             }
         }
         MPI_Barrier(MPI_COMM_WORLD);
