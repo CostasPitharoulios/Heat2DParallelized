@@ -27,7 +27,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define NXPROB      8                 /* x dimension of problem grid */
+#define NXPROB      10                 /* x dimension of problem grid */
 #define NYPROB      8                 /* y dimension of problem grid */
 #define STEPS       1 /*100*/            /* number of time steps */
 #define BEGIN       1                  /* message tag */
@@ -91,7 +91,12 @@ int main (int argc, char *argv[]){
         printf("Initializing grid and writing initial.dat file...\n");
         inidat(NXPROB, NYPROB, u);
         prtdat(NXPROB, NYPROB, u, "initial.dat");
-        myprint(NXPROB, NYPROB, u[0]);
+        for (j=0; j<NYPROB; j++){
+            for (ix=0; ix<NXPROB; ix++)
+                printf("%6.1f ", u[0][ix][j]);
+            printf("\n");
+        }
+        //myprint(NXPROB, NYPROB, u[0]);
 
         /* Find the dimentions of the partitioned grid (e.x. 4 x 4) */
         /* xdim,ydim are guarented to be found, since we have checked that
@@ -223,12 +228,12 @@ int main (int argc, char *argv[]){
                 displs[i*ydim+j] = disp; /* h' mhpws xdim */
                 disp +=1;
             }
-            disp += (columns-1)*ydim; /* h' rows, ydim klp */
+            disp += (rows-1)*ydim; /* h' rows, ydim klp */
         }
     }
 
     if (taskid == 0){
-        printf("displs=[ \n");
+        printf("displs=[ ");
         for (i=0; i<ydim*xdim; i++){
                 printf("%d ",displs[i]);
         }
@@ -241,8 +246,8 @@ int main (int argc, char *argv[]){
     for ( i=0; i<numtasks; i++){
         if (taskid == i){
             printf("=========== To kommati tou %d =========\n",i);
-            for (ix=0; ix<columns; ix++){
-                for (j=0; j<rows; j++)
+            for (j=0; j<rows; j++){
+                for (ix=0; ix<columns; ix++)
                     printf("%.1f ", local[ix][j]);
                 printf("\n");
             }
