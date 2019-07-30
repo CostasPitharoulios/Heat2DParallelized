@@ -334,15 +334,15 @@ int main (int argc, char *argv[]){
 
     /////////////////////
     /* Vazw ka8e diergasia na alla3ei ton local, gia testing */
-    for (i=0; i<rows+2; i++){
-        for (j=0; j<columns+2; j++){
+    for (i=1; i<rows+1; i++){
+        for (j=1; j<columns+1; j++){
             local[0][i][j] = taskid;
         }
     }
     /////////////////////
 
     /* Gather it all back */
-    MPI_Gatherv(&(local[0][1][1]), columns*rows,  MPI_FLOAT/*recvsubarrtype*/, globalptr, sendcounts, displs, sendsubarrtype, 0, MPI_COMM_WORLD);
+    MPI_Gatherv(&(local[0][1][1]), columns*rows,  recvsubarrtype, globalptr, sendcounts, displs, sendsubarrtype, 0, MPI_COMM_WORLD);
 
     free2darr(&local[0]);
     free2darr(&local[1]);
