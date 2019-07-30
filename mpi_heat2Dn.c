@@ -42,7 +42,7 @@ struct Parms {
   float cy;
 } parms = {0.1, 0.1};
 
-void inidat(), prtdat(), updateExternal, update(), myprint(), DUMMYDUMDUM();
+void inidat(), prtdat(), updateExternal(), update(), myprint(), DUMMYDUMDUM();
 int malloc2darr(),free2darr(),isPrime();
 
 int main (int argc, char *argv[]){
@@ -282,7 +282,7 @@ int main (int argc, char *argv[]){
         MPI_Barrier(MPI_COMM_WORLD);
     }
 
-#if 0 
+///#if 0 
     /* workers code */
 
 
@@ -294,52 +294,53 @@ int main (int argc, char *argv[]){
     
 	MPI_Request RRequestR,RRequestL, RRequestU, RRequestD;  //...A = ANATOLIKOS GEITONAS , ...D = DYTIKO, ...B = BOREIOS, ...N = NOTIOS
         MPI_Request SRequestR,  SRequestL,  SRequestU,  SRequestD;
-
+	iz = 0;
 	for (it = 1; it <= STEPS; it++)
         {
 	   
-	   float* Rarray;
-	   float* Larray;
-	   float* Uarray;
-	   float* Darray; //these are one dimensional arrays which keep the values of neighbors (RIGHT, LEFT, UP, DOWN))
-
-	   /// *** RECEIVING PROCEDURES *** ///
-	   if (right !=  MPI_PROC_NULL){
-	       Rarray = malloc(sizeof(float) * xdim); ///WARNING: maybe xdim
-  	       MPI_Irecv(Rarray, xdim, MPI_FLOAT, right,0, MPI_COMM_WORLD, &RRequestR); ///WARNING: 0??
-	   }
-	   if (left !=  MPI_PROC_NULL){
-   	       Larray = malloc(sizeof(float) * xdim);
-	       MPI_Irecv(Larray, xdim, MPI_FLOAT, left,0, MPI_COMM_WORLD, &RRequestL); ///WARNING: 0?
-	   }
-	   if (up !=  MPI_PROC_NULL){
-	       Uarray = malloc(sizeof(float) * ydim);
-	       MPI_Irecv(Uarray, ydim, MPI_FLOAT, up, 0, MPI_COMM_WORLD, &RRequestU); ///WARNING: 0??
-	   }
-	   if (down !=  MPI_PROC_NULL){
-  	       Darray = malloc(sizeof(float) * ydim);
-    	       MPI_Irecv(Darray, ydim, MPI_FLOAT, down,0, MPI_COMM_WORLD, &RRequestD); ///WARNING: 0??
-	   }
-	   
-
-	  /// *** SENDING PROCEDURES *** ///
+//	   float* Rarray;
+//	   float* Larray;
+//	   float* Uarray;
+//	   float* Darray; //these are one dimensional arrays which keep the values of neighbors (RIGHT, LEFT, UP, DOWN))
 
 	   // these help us send a column of the matrix
 	   MPI_Datatype column; 
 	   MPI_Type_vector(xdim, 1,ydim, MPI_FLOAT, &column);
 	   MPI_Type_commit(&column);
+
+
+	   /// *** RECEIVING PROCEDURES *** ///
+	   if (left !=  MPI_PROC_NULL){
+//	       Rarray = malloc(sizeof(float) * xdim); ///WARNING: maybe xdim
+  	       MPI_Irecv(&(local[iz][0]), 1, column, left,0, MPI_COMM_WORLD, &RRequestR); ///WARNING: 0??
+	   }
+	   if (right !=  MPI_PROC_NULL){
+   	       //Larray = malloc(sizeof(float) * xdim);
+	       MPI_Irecv(&(local[iz][ydim+1]), 1, column, right,0, MPI_COMM_WORLD, &RRequestL); ///WARNING: 0?
+	   }
+	   if (down !=  MPI_PROC_NULL){
+	       //Uarray = malloc(sizeof(float) * ydim);
+	       MPI_Irecv(&(local[iz][0][0]), ydim, MPI_FLOAT, down, 0, MPI_COMM_WORLD, &RRequestU); ///WARNING: 0??
+	   }
+	   if (up !=  MPI_PROC_NULL){
+    	       MPI_Irecv(&(local[iz][xdim+1][0]), ydim, MPI_FLOAT, up,0, MPI_COMM_WORLD, &RRequestD); ///WARNING: 0??
+	   }
+	   
+
+	  /// *** SENDING PROCEDURES *** ///
+
 	   
 	   if (right != MPI_PROC_NULL){
-  	       MPI_Isend(local[ydim-1], 1, column, 0, 0, MPI_COMM_WORLD, &SRequestR);  //sends column to RIGHT neighbor
+  	       MPI_Isend(local[iz][ydim], 1, column, right, 0, MPI_COMM_WORLD, &SRequestR);  //sends column to RIGHT neighbor
 	   }
            if (left != MPI_PROC_NULL){
-	       MPI_Isend(local[0], 1, column, 0 ,0, MPI_COMM_WORLD, &SRequestL);	//sends column to left neighbor
+	       MPI_Isend(local[iz][1], 1, column, left ,0, MPI_COMM_WORLD, &SRequestL);	//sends column to left neighbor
 	   }
            if (up != MPI_PROC_NULL){
-  	       MPI_Isend(&local[0][0], ydim, MPI_FLOAT, 0, 0, MPI_COMM_WORLD, &SRequestU);  //sends to UP neighbor
+  	       MPI_Isend(&local[iz][1][0], ydim, MPI_FLOAT, up, 0, MPI_COMM_WORLD, &SRequestU);  //sends to UP neighbor
 	   }
            if (down != MPI_PROC_NULL){
-	       MPI_Isend(&local[xdim-1][0], ydim, MPI_FLOAT, 0 ,0, MPI_COMM_WORLD, &SRequestD); //sends to DOWN neighbor
+	       MPI_Isend(&local[iz][xdim][0], ydim, MPI_FLOAT, down ,0, MPI_COMM_WORLD, &SRequestD); //sends to DOWN neighbor
 	   }
 
 	 /// *** CALCULATION OF INTERNAL DATA *** ///
@@ -365,8 +366,8 @@ int main (int argc, char *argv[]){
        }
 
    }
-#endif
-
+///#endif
+#if 0
     /////////////////////
     /* Vazw ka8e diergasia na alla3ei ton local, gia testing */
     for (i=1; i<rows+1; i++){
@@ -375,6 +376,8 @@ int main (int argc, char *argv[]){
         }
     }
     /////////////////////
+
+#endif
 
     /* Gather it all back */
     MPI_Gatherv(&(local[0][0][0]), 1, recvsubarrtype, globalptr, sendcounts, displs, sendsubarrtype, MASTER, MPI_COMM_WORLD);
