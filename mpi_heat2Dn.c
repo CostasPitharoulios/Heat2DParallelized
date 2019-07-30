@@ -228,7 +228,7 @@ int main (int argc, char *argv[]){
     /* Define the datatype of receive buffer elements */
     int recvsizes[2]    = {rows+2, columns+2};         /* local array size */
     int recvsubsizes[2] = {rows, columns};          /* local size without halo */
-    int recvstarts[2]   = {0,0};
+    int recvstarts[2]   = {1,1};
 
     MPI_Datatype recvsubarrtype;
     MPI_Type_create_subarray(2, recvsizes, recvsubsizes, recvstarts, MPI_ORDER_C, MPI_FLOAT, &recvsubarrtype);
@@ -267,7 +267,7 @@ int main (int argc, char *argv[]){
     }
 
 
-    MPI_Scatterv(globalptr, sendcounts, displs, sendsubarrtype, &(local[0][1][1]), columns*rows, recvsubarrtype, MASTER, MPI_COMM_WORLD);
+    MPI_Scatterv(globalptr, sendcounts, displs, sendsubarrtype, &(local[0][0][0]), columns*rows, recvsubarrtype, MASTER, MPI_COMM_WORLD);
 
 
     for ( i=0; i<numtasks; i++){
@@ -423,7 +423,7 @@ int main (int argc, char *argv[]){
     /////////////////////
 
     /* Gather it all back */
-    MPI_Gatherv(&(local[0][1][1]), columns*rows,  MPI_FLOAT/*recvsubarrtype*/, globalptr, sendcounts, displs, sendsubarrtype, 0, MPI_COMM_WORLD);
+    MPI_Gatherv(&(local[0][0][0]), 1, recvsubarrtype, globalptr, sendcounts, displs, sendsubarrtype, MASTER, MPI_COMM_WORLD);
 
     free2darr(&local[0]);
     free2darr(&local[1]);
