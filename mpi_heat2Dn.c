@@ -42,13 +42,13 @@ struct Parms {
   float cy;
 } parms = {0.1, 0.1};
 
-int isPrime(int n);
 void inidat(), prtdat(), update(), myprint(), DUMMYDUMDUM();
-int malloc2darr();
+int malloc2darr(),free2darr(),isPrime();
 
 int main (int argc, char *argv[]){
-    float u[2][NXPROB][NYPROB],        /* array for grid */
-          **local;                  /* TODO: **local[2]*/
+    float u[2][NXPROB][NYPROB],        /* array for grid TODO: mhpws na to exei mono o master? den xreiazetai na desmeutei se olous.. oi uloipoi exoyn to local. (auto mporei na ginei vazontas to static mesa se if, isws) */
+          /* Episis den xreiazomaste u[2] efoson exoume local[2] */
+          **local[2];                  /* array for local part of the grid */
     int	taskid,                     /* this task's unique id */
         numworkers,                 /* number of worker processes */
         numtasks,                   /* number of tasks */
@@ -204,7 +204,8 @@ int main (int argc, char *argv[]){
     }
     printf("LOG: Process %d: left:%d, right:%d, up:%d, down:%d\n",taskid,left,right,up,down);
 
-    malloc2darr(&local, rows, columns);
+    malloc2darr(&local[0], rows, columns);
+    malloc2darr(&local[1], rows, columns);
 
     int sizes[2]    = {NXPROB, NYPROB};         /* global size */
     int subsizes[2] = {rows, columns};          /* local size */
@@ -247,7 +248,7 @@ int main (int argc, char *argv[]){
     }
 
 
-    MPI_Scatterv(globalptr, sendcounts, displs, subarrtype, &(local[0][0]), columns*rows, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
+    MPI_Scatterv(globalptr, sendcounts, displs, subarrtype, &(local[0][0][0]), columns*rows, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
 
 
     for ( i=0; i<numtasks; i++){
@@ -255,7 +256,7 @@ int main (int argc, char *argv[]){
             printf("=========== To kommati tou %d =========\n",i);
             for (ix=0; ix<rows; ix++){
                 for (j=0; j<columns; j++)
-                    printf("%.1f ", local[ix][j]);
+                    printf("%.1f ", local[0][ix][j]);
                 printf("\n\n");
             }
         }
@@ -311,6 +312,34 @@ int main (int argc, char *argv[]){
                MPI_COMM_WORLD);
    }
 #endif
+
+    /////////////////////
+    /* Vazw ka8e diergasia na alla3ei ton local, gia testing */
+    for (i=0; i<rows; i++){
+        for (j=0; j<columns; j++){
+            local[0][i][j] = taskid;
+        }
+    }
+    /////////////////////
+
+    /* Gather it all back */
+
+    MPI_Gatherv(&(local[0][0][0]), columns*rows,  MPI_FLOAT, globalptr, sendcounts, displs, subarrtype, 0, MPI_COMM_WORLD);
+
+    free2darr(&local[0]);
+    free2darr(&local[1]);
+
+    MPI_Type_free(&subarrtype);
+
+    if (taskid==MASTER){
+        printf("Processed grid:\n");
+        for (ix=0; ix<NXPROB; ix++){
+            for (j=0; j<NYPROB; j++)
+                printf("%6.1f ", u[0][ix][j]);
+            printf("\n\n");
+        }
+    }
+
     MPI_Finalize();
     return 0;
 }
