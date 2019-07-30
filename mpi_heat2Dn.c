@@ -304,21 +304,21 @@ int main (int argc, char *argv[]){
 	   /// *** RECEIVING PROCEDURES *** ///
         if (left !=  MPI_PROC_NULL){
         //	       Rarray = malloc(sizeof(float) * xdim); ///WARNING: maybe xdim
-            MPI_Irecv(&(local[iz][0]), 1, column, left,0, MPI_COMM_WORLD, &RRequestR); ///WARNING: 0??
+            MPI_Irecv(&(local[iz][0]), 1, column, left,0, MPI_COMM_WORLD, &RRequestL); ///WARNING: 0??
         }
         if (right !=  MPI_PROC_NULL){
            //Larray = malloc(sizeof(float) * xdim);
-            MPI_Irecv(&(local[iz][ydim+1]), 1, column, right,0, MPI_COMM_WORLD, &RRequestL); ///WARNING: 0?
+            MPI_Irecv(&(local[iz][ydim+1]), 1, column, right,0, MPI_COMM_WORLD, &RRequestR); ///WARNING: 0?
         }
         if (down !=  MPI_PROC_NULL){
            //Uarray = malloc(sizeof(float) * ydim);
-            MPI_Irecv(&(local[iz][0][0]), ydim, MPI_FLOAT, down, 0, MPI_COMM_WORLD, &RRequestU); ///WARNING: 0??
+            MPI_Irecv(&(local[iz][xdim+1][1]), ydim, MPI_FLOAT, down, 0, MPI_COMM_WORLD, &RRequestD); ///WARNING: 0??
         }
         if (up !=  MPI_PROC_NULL){
-            MPI_Irecv(&(local[iz][xdim+1][0]), ydim, MPI_FLOAT, up,0, MPI_COMM_WORLD, &RRequestD); ///WARNING: 0??
+            MPI_Irecv(&(local[iz][0][1]), ydim, MPI_FLOAT, up,0, MPI_COMM_WORLD, &RRequestU); ///WARNING: 0??
         }
 	   
-    
+#if 0    
 	  /// *** SENDING PROCEDURES *** ///
         if (right != MPI_PROC_NULL){
             MPI_Isend(local[iz][ydim], 1, column, right, 0, MPI_COMM_WORLD, &SRequestR);  //sends column to RIGHT neighbor
@@ -351,6 +351,7 @@ int main (int argc, char *argv[]){
         MPI_Wait(&SRequestL , MPI_STATUS_IGNORE );
         MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
         MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
+#endif
     }
     finish = MPI_Wtime();
 
