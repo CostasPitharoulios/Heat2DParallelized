@@ -290,18 +290,19 @@ int main (int argc, char *argv[]){
     start = MPI_Wtime();
 	printf("Task %d received work. Beginning time steps...\n",taskid);
 
-    MPI_Request RRequestR,RRequestL, RRequestU, RRequestD;  //...A = ANATOLIKOS GEITONAS , ...D = DYTIKO, ...B = BOREIOS, ...N = NOTIOS
-    MPI_Request SRequestR,  SRequestL,  SRequestU,  SRequestD;
+    MPI_Request RRequestR, RRequestL, RRequestU, RRequestD;  //...A = ANATOLIKOS GEITONAS , ...D = DYTIKO, ...B = BOREIOS, ...N = NOTIOS
+    MPI_Request SRequestR, SRequestL, SRequestU, SRequestD;
 	iz = 0;
 	for (it = 1; it <= STEPS; it++){
 	   
-	   // these help us send a column of the matrix
+	    // these help us send a column of the matrix
         MPI_Datatype column; 
         MPI_Type_vector(xdim, 1,ydim, MPI_FLOAT, &column);
         MPI_Type_commit(&column);
 
 
-	   /// *** RECEIVING PROCEDURES *** ///
+	    /// *** RECEIVING PROCEDURES *** ///
+#if 0
         if (left !=  MPI_PROC_NULL){
         //	       Rarray = malloc(sizeof(float) * xdim); ///WARNING: maybe xdim
             MPI_Irecv(&(local[iz][0]), 1, column, left,0, MPI_COMM_WORLD, &RRequestR); ///WARNING: 0??
@@ -310,27 +311,30 @@ int main (int argc, char *argv[]){
            //Larray = malloc(sizeof(float) * xdim);
             MPI_Irecv(&(local[iz][ydim+1]), 1, column, right,0, MPI_COMM_WORLD, &RRequestL); ///WARNING: 0?
         }
+#endif
         if (down !=  MPI_PROC_NULL){
            //Uarray = malloc(sizeof(float) * ydim);
-            MPI_Irecv(&(local[iz][0][0]), ydim, MPI_FLOAT, down, 0, MPI_COMM_WORLD, &RRequestU); ///WARNING: 0??
+            MPI_Irecv(&(local[iz][xdim+1][1]), ydim, MPI_FLOAT, down, 0, MPI_COMM_WORLD, &RRequestD); ///WARNING: 0??
         }
         if (up !=  MPI_PROC_NULL){
-            MPI_Irecv(&(local[iz][xdim+1][0]), ydim, MPI_FLOAT, up,0, MPI_COMM_WORLD, &RRequestD); ///WARNING: 0??
+            MPI_Irecv(&(local[iz][0][1]), ydim, MPI_FLOAT, up, 0, MPI_COMM_WORLD, &RRequestU); ///WARNING: 0??
         }
 	   
     
 	  /// *** SENDING PROCEDURES *** ///
+#if 0
         if (right != MPI_PROC_NULL){
             MPI_Isend(local[iz][ydim], 1, column, right, 0, MPI_COMM_WORLD, &SRequestR);  //sends column to RIGHT neighbor
         }
         if (left != MPI_PROC_NULL){
             MPI_Isend(local[iz][1], 1, column, left ,0, MPI_COMM_WORLD, &SRequestL);	//sends column to left neighbor
         }
-        if (up != MPI_PROC_NULL){
-            MPI_Isend(&local[iz][1][0], ydim, MPI_FLOAT, up, 0, MPI_COMM_WORLD, &SRequestU);  //sends to UP neighbor
-        }
+#endif
         if (down != MPI_PROC_NULL){
             MPI_Isend(&local[iz][xdim][0], ydim, MPI_FLOAT, down ,0, MPI_COMM_WORLD, &SRequestD); //sends to DOWN neighbor
+        }
+        if (up != MPI_PROC_NULL){
+            MPI_Isend(&local[iz][1][0], ydim, MPI_FLOAT, up, 0, MPI_COMM_WORLD, &SRequestU);  //sends to UP neighbor
         }
 
         /// *** CALCULATION OF INTERNAL DATA *** ///
