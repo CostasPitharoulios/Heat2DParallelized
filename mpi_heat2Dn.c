@@ -28,7 +28,7 @@
 #include <math.h>
 
 #define NXPROB      12                 /* x dimension of problem grid */
-#define NYPROB      8                 /* y dimension of problem grid */
+#define NYPROB      8                  /* y dimension of problem grid */
 #define STEPS       1 /*100*/            /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
@@ -42,13 +42,13 @@ struct Parms {
   float cy;
 } parms = {0.1, 0.1};
 
-void inidat(), prtdat(), updateExternal, update(), myprint(), DUMMYDUMDUM();
+void inidat(), prtdat(), updateExternal(), update(), myprint(), DUMMYDUMDUM();
 int malloc2darr(),free2darr(),isPrime();
 
 int main (int argc, char *argv[]){
     float u[2][NXPROB][NYPROB],        /* array for grid TODO: mhpws na to exei mono o master? den xreiazetai na desmeutei se olous.. oi uloipoi exoyn to local. (auto mporei na ginei vazontas to static mesa se if, isws) */
           /* Episis den xreiazomaste u[2] efoson exoume local[2] */
-          **local[2];                  /* array for local part of the grid */
+          **local[2];                  /* stores the block assigned to current task, surrounded by halo points */
     int	taskid,                     /* this task's unique id */
         numworkers,                 /* number of worker processes */
         numtasks,                   /* number of tasks */
@@ -56,12 +56,11 @@ int main (int argc, char *argv[]){
         dest, source,               /* to - from for message send-receive */
         left,right,up,down,        /* neighbor tasks */
         msgtype,                    /* for message types */
-        rc,start,end,               /* misc */
         xdim, ydim,                 /* dimensions of grid partition (e.x. 4x4) */
         rows, columns,             /* number of rows/columns of each block (e.x. 20x12) */
         i,j,x,y,ix,iy,iz,it;              /* loop variables */
+    double start,finish;
     MPI_Status status;
-
 
     /* First, find out my taskid and how many tasks are running */
     MPI_Init(&argc,&argv);
@@ -213,8 +212,6 @@ int main (int argc, char *argv[]){
             for (iy=0; iy<columns+2; iy++) 
                 local[iz][ix][iy] = 0.0;
 
-
-
     /* Define the datatype of send buffer elements */
     int sendsizes[2]    = {NXPROB, NYPROB};    /* u size */
     int sendsubsizes[2] = {rows, columns};     /* local size without halo */
@@ -307,6 +304,7 @@ int main (int argc, char *argv[]){
 	printf("LETS SEE\n\n\n");
 
 	//Srart MPI_Wtime;
+    start = MPI_Wtime();
 	printf("Task %d received work. Beginning time steps...\n",taskid);
     
 	MPI_Request RRequestR,RRequestL, RRequestU, RRequestD;  //...A = ANATOLIKOS GEITONAS , ...D = DYTIKO, ...B = BOREIOS, ...N = NOTIOS
@@ -359,11 +357,9 @@ int main (int argc, char *argv[]){
 	       MPI_Isend(&local[xdim-1][0], ydim, MPI_FLOAT, 0 ,0, MPI_COMM_WORLD, &SRequestD); //sends to DOWN neighbor
 	   }
 
-	 /// *** CALCULATION OF INTERNAL DATA *** ///
+	   /// *** CALCULATION OF INTERNAL DATA *** ///
 	   update(2, xdim-1, ydim,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
 	   //line 0 contains neighbor's values and line 1 is the extrnal line of the block, so we don't want them. The same for the one before last and the last line.
-
-
 
 	   MPI_Wait(&RRequestR , MPI_STATUS_IGNORE );
 	   MPI_Wait(&RRequestL , MPI_STATUS_IGNORE );
@@ -380,6 +376,7 @@ int main (int argc, char *argv[]){
            MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
            MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
        }
+    finish = MPI_Wtime();
 
    }
 #endif
@@ -401,6 +398,7 @@ int main (int argc, char *argv[]){
 
     MPI_Type_free(&sendsubarrtype); /*TODO kai tous upoloipous */
 
+    printf("Process:%d, Elapsed time: %e secs\n",taskid,finish-start);
     if (taskid==MASTER){
         printf("Processed grid:\n");
         for (ix=0; ix<NXPROB; ix++){
