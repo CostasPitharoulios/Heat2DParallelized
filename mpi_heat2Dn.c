@@ -290,18 +290,18 @@ int main (int argc, char *argv[]){
     start = MPI_Wtime();
 	printf("Task %d received work. Beginning time steps...\n",taskid);
 
-    MPI_Request RRequestR,RRequestL, RRequestU, RRequestD;  //...A = ANATOLIKOS GEITONAS , ...D = DYTIKO, ...B = BOREIOS, ...N = NOTIOS
-    MPI_Request SRequestR,  SRequestL,  SRequestU,  SRequestD;
+    MPI_Request RRequestR, RRequestL, RRequestU, RRequestD;  //...A = ANATOLIKOS GEITONAS , ...D = DYTIKO, ...B = BOREIOS, ...N = NOTIOS
+    MPI_Request SRequestR, SRequestL, SRequestU, SRequestD;
 	iz = 0;
 ////	for (it = 1; it <= STEPS; it++){
 	   
-	   // these help us send a column of the matrix
+	    // these help us send a column of the matrix
         MPI_Datatype column; 
         MPI_Type_vector(rows+2, 1,columns+2, MPI_FLOAT, &column);
         MPI_Type_commit(&column);
 
 
-	   /// *** RECEIVING PROCEDURES *** ///
+	    /// *** RECEIVING PROCEDURES *** ///
 #if 0
         if (left !=  MPI_PROC_NULL){
         //	       Rarray = malloc(sizeof(float) * xdim); ///WARNING: maybe xdim
@@ -312,7 +312,6 @@ int main (int argc, char *argv[]){
             MPI_Irecv(&(local[iz][columns+1]), 1, column, right,0, MPI_COMM_WORLD, &RRequestR); ///WARNING: 0?
         }
 #endif
-//#if 0
         if (down !=  MPI_PROC_NULL){
            //Uarray = malloc(sizeof(float) * ydim);
             MPI_Irecv(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, MPI_COMM_WORLD, &RRequestD); ///WARNING: 0??
@@ -325,6 +324,7 @@ int main (int argc, char *argv[]){
 //#endif	   
 #if 0    
 	  /// *** SENDING PROCEDURES *** ///
+#if 0
         if (right != MPI_PROC_NULL){
             MPI_Isend(local[iz][columns], 1, column, right, 0, MPI_COMM_WORLD, &SRequestR);  //sends column to RIGHT neighbor
         }
@@ -337,12 +337,9 @@ int main (int argc, char *argv[]){
             MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, MPI_COMM_WORLD, &SRequestU);  //sends to UP neighbor
         }
 //#endif
-//#if 0
         if (down != MPI_PROC_NULL){
             MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, MPI_COMM_WORLD, &SRequestD); //sends to DOWN neighbor
         }
-//#endif
-#if 0
 
         /// *** CALCULATION OF INTERNAL DATA *** ///
         update(2, rows-1, columns,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
