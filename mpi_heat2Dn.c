@@ -423,7 +423,7 @@ int main (int argc, char *argv[]){
     /////////////////////
 
     /* Gather it all back */
-    MPI_Gatherv(&(local[0][1][1]), columns*rows,  recvsubarrtype, globalptr, sendcounts, displs, sendsubarrtype, 0, MPI_COMM_WORLD);
+    MPI_Gatherv(&(local[0][1][1]), columns*rows,  MPI_FLOAT/*recvsubarrtype*/, globalptr, sendcounts, displs, sendsubarrtype, 0, MPI_COMM_WORLD);
 
     free2darr(&local[0]);
     free2darr(&local[1]);
