@@ -27,8 +27,8 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define NXPROB      8                 /* x dimension of problem grid */
-#define NYPROB      12                 /* y dimension of problem grid */
+#define NXPROB      12                 /* x dimension of problem grid */
+#define NYPROB      8                 /* y dimension of problem grid */
 #define STEPS       1 /*100*/            /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
