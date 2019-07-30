@@ -28,7 +28,7 @@
 #include <math.h>
 
 #define NXPROB      10                 /* x dimension of problem grid */
-#define NYPROB      10                 /* y dimension of problem grid */
+#define NYPROB      6                 /* y dimension of problem grid */
 #define STEPS       1 /*100*/            /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
@@ -256,7 +256,7 @@ int main (int argc, char *argv[]){
         }
         MPI_Barrier(MPI_COMM_WORLD);
     }
-
+#if 0
     if ( taskid!=MASTER){
     /* workers code */
 
@@ -342,7 +342,7 @@ int main (int argc, char *argv[]){
        }
 
    }
-
+#endif
 #if 0
 ///OLD VERSION COSTAS
       printf("Task %d received work. Beginning time steps...\n",taskid);
