@@ -280,28 +280,11 @@ int main (int argc, char *argv[]){
     }
 
 #if 0 
-///    if ( taskid!=MASTER){
     /* workers code */
 
-      /* Determine border elements.  Need to consider first and last columns. */
-      /* Obviously, row 0 can't exchange with row 0-1.  Likewise, the last */
-      /* row can't exchange with last+1.  */
-   /*   if (offset==0) 
-         start=1;
-      else 
-         start=offset;
-      if ((offset+rows)==NXPROB) 
-         end=start+rows-2;
-      else 
-         end = start+rows-1;*/
-
-      /* Begin doing STEPS iterations.  Must communicate border rows with */
-      /* neighbors.  If I have the first or last grid row, then I only need */
-      /*  to  communicate with one neighbor  */
 
 
 	//MPI_Barrier(MPI_COMM_WORLD);
-	printf("LETS SEE\n\n\n");
 
 	//Srart MPI_Wtime;
     start = MPI_Wtime();
