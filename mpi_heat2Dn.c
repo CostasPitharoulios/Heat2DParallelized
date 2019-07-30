@@ -27,8 +27,8 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define NXPROB      12                 /* x dimension of problem grid */
-#define NYPROB      8                 /* y dimension of problem grid */
+#define NXPROB      8                 /* x dimension of problem grid */
+#define NYPROB      12                 /* y dimension of problem grid */
 #define STEPS       1 /*100*/            /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
@@ -108,6 +108,14 @@ int main (int argc, char *argv[]){
                 break;
             }
         }
+       
+        /* Swap them if neccessary, in order to make the blocks more square-like */ 
+        if (NYPROB > NXPROB && ydim < xdim){
+            int a = xdim;
+            xdim = ydim;
+            ydim = a;
+        }
+
         printf("The grid will part into a %d x %d block grid.\n",xdim,ydim);
 
         /* Compute the length and height of each block */
@@ -226,7 +234,7 @@ int main (int argc, char *argv[]){
                 displs[i*ydim+j] = disp; /* h' mhpws xdim */
                 disp +=1;
             }
-            disp += (rows-1)*xdim; /* h' rows, ydim klp */
+            disp += (rows-1)*ydim; /* h' rows, ydim klp */
         }
     }
 
