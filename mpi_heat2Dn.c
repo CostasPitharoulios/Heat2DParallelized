@@ -204,17 +204,36 @@ int main (int argc, char *argv[]){
     }
     printf("LOG: Process %d: left:%d, right:%d, up:%d, down:%d\n",taskid,left,right,up,down);
 
-    malloc2darr(&local[0], rows, columns);
-    malloc2darr(&local[1], rows, columns);
+    malloc2darr(&local[0], rows+2, columns+2);
+    malloc2darr(&local[1], rows+2, columns+2);
 
-    int sizes[2]    = {NXPROB, NYPROB};         /* global size */
-    int subsizes[2] = {rows, columns};          /* local size */
-    int starts[2]   = {0,0};                    /* where this one starts */
+    /* Initialize with 0's TODO mhpws den xreiazetai? */
+    for (iz=0; iz<2; iz++)
+        for (ix=0; ix<rows+2; ix++) 
+            for (iy=0; iy<columns+2; iy++) 
+                local[iz][ix][iy] = 0.0;
 
-    MPI_Datatype type, subarrtype;
-    MPI_Type_create_subarray(2, sizes, subsizes, starts, MPI_ORDER_C, MPI_FLOAT, &type);
-    MPI_Type_create_resized(type, 0, columns*sizeof(float), &subarrtype); /* h columns */
-    MPI_Type_commit(&subarrtype);
+
+
+    /* Define the datatype of send buffer elements */
+    int sendsizes[2]    = {NXPROB, NYPROB};    /* u size */
+    int sendsubsizes[2] = {rows, columns};     /* local size without halo */
+    int sendstarts[2]   = {0,0};
+
+    MPI_Datatype type, sendsubarrtype;
+    MPI_Type_create_subarray(2, sendsizes, sendsubsizes, sendstarts, MPI_ORDER_C, MPI_FLOAT, &type);
+    MPI_Type_create_resized(type, 0, columns*sizeof(float), &sendsubarrtype); /* h columns */
+    MPI_Type_commit(&sendsubarrtype);
+
+    /* Define the datatype of receive buffer elements */
+    int recvsizes[2]    = {rows+2, columns+2};         /* local array size */
+    int recvsubsizes[2] = {rows, columns};          /* local size without halo */
+    int recvstarts[2]   = {0,0};
+
+    MPI_Datatype recvsubarrtype;
+    MPI_Type_create_subarray(2, recvsizes, recvsubsizes, recvstarts, MPI_ORDER_C, MPI_FLOAT, &recvsubarrtype);
+    MPI_Type_commit(&recvsubarrtype);
+
 
     float *globalptr=NULL;
     if (taskid == MASTER) globalptr = &(u[0][0][0]);
@@ -248,15 +267,15 @@ int main (int argc, char *argv[]){
     }
 
 
-    MPI_Scatterv(globalptr, sendcounts, displs, subarrtype, &(local[0][0][0]), columns*rows, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
+    MPI_Scatterv(globalptr, sendcounts, displs, sendsubarrtype, &(local[0][1][1]), columns*rows, recvsubarrtype, MASTER, MPI_COMM_WORLD);
 
 
     for ( i=0; i<numtasks; i++){
         if (taskid == i){
             printf("=========== To kommati tou %d =========\n",i);
-            for (ix=0; ix<rows; ix++){
-                for (j=0; j<columns; j++)
-                    printf("%.1f ", local[0][ix][j]);
+            for (ix=0; ix<rows+2; ix++){
+                for (j=0; j<columns+2; j++)
+                    printf("%6.1f ", local[0][ix][j]);
                 printf("\n\n");
             }
         }
@@ -315,21 +334,20 @@ int main (int argc, char *argv[]){
 
     /////////////////////
     /* Vazw ka8e diergasia na alla3ei ton local, gia testing */
-    for (i=0; i<rows; i++){
-        for (j=0; j<columns; j++){
+    for (i=0; i<rows+2; i++){
+        for (j=0; j<columns+2; j++){
             local[0][i][j] = taskid;
         }
     }
     /////////////////////
 
     /* Gather it all back */
-
-    MPI_Gatherv(&(local[0][0][0]), columns*rows,  MPI_FLOAT, globalptr, sendcounts, displs, subarrtype, 0, MPI_COMM_WORLD);
+    MPI_Gatherv(&(local[0][1][1]), columns*rows,  MPI_FLOAT/*recvsubarrtype*/, globalptr, sendcounts, displs, sendsubarrtype, 0, MPI_COMM_WORLD);
 
     free2darr(&local[0]);
     free2darr(&local[1]);
 
-    MPI_Type_free(&subarrtype);
+    MPI_Type_free(&sendsubarrtype); /*TODO kai tous upoloipous */
 
     if (taskid==MASTER){
         printf("Processed grid:\n");
