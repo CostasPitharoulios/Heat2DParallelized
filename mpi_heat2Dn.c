@@ -27,8 +27,8 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define NXPROB      10                 /* x dimension of problem grid */
-#define NYPROB      6                 /* y dimension of problem grid */
+#define NXPROB      12                 /* x dimension of problem grid */
+#define NYPROB      8                 /* y dimension of problem grid */
 #define STEPS       1 /*100*/            /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
@@ -42,13 +42,13 @@ struct Parms {
   float cy;
 } parms = {0.1, 0.1};
 
-int isPrime(int n);
-void inidat(), myupdate(), prtdat(), update(), myprint();
-int malloc2darr();
+void inidat(), prtdat(), update(), myprint(), DUMMYDUMDUM();
+int malloc2darr(),free2darr(),isPrime();
 
 int main (int argc, char *argv[]){
-    float u[2][NXPROB][NYPROB],        /* array for grid */
-          **local;                  /* TODO: **local[2]*/
+    float u[2][NXPROB][NYPROB],        /* array for grid TODO: mhpws na to exei mono o master? den xreiazetai na desmeutei se olous.. oi uloipoi exoyn to local. (auto mporei na ginei vazontas to static mesa se if, isws) */
+          /* Episis den xreiazomaste u[2] efoson exoume local[2] */
+          **local[2];                  /* array for local part of the grid */
     int	taskid,                     /* this task's unique id */
         numworkers,                 /* number of worker processes */
         numtasks,                   /* number of tasks */
@@ -59,7 +59,7 @@ int main (int argc, char *argv[]){
         rc,start,end,               /* misc */
         xdim, ydim,                 /* dimensions of grid partition (e.x. 4x4) */
         rows, columns,             /* number of rows/columns of each block (e.x. 20x12) */
-        i,j,x,ix,iy,iz,it;              /* loop variables */
+        i,j,x,y,ix,iy,iz,it;              /* loop variables */
     MPI_Status status;
 
 
@@ -89,37 +89,41 @@ int main (int argc, char *argv[]){
         /* Initialize grid */
         printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
         printf("Initializing grid and writing initial.dat file...\n");
-        inidat(NXPROB, NYPROB, u);
+        DUMMYDUMDUM(NXPROB, NYPROB, u); /* TODO TODO TODO */
         prtdat(NXPROB, NYPROB, u, "initial.dat");
-        for (j=0; j<NYPROB; j++){
-            for (ix=0; ix<NXPROB; ix++)
+        for (ix=0; ix<NXPROB; ix++){
+            for (j=0; j<NYPROB; j++)
                 printf("%6.1f ", u[0][ix][j]);
-            printf("\n");
+            printf("\n\n");
         }
         //myprint(NXPROB, NYPROB, u[0]);
 
         /* Find the dimentions of the partitioned grid (e.x. 4 x 4) */
         /* xdim,ydim are guarented to be found, since we have checked that
          * numworkers is not prime. */
-        for (x=sqrt(numworkers); x>=1; x--){
+        for (x=sqrt(numworkers) + 1; x>=1; x--){
             if (numworkers % x == 0){
                 xdim = x;
                 ydim = numworkers/x;
                 break;
             }
         }
+       
+        /* Swap them if neccessary, in order to make the blocks more square-like */ 
+        if (NYPROB > NXPROB && ydim < xdim){
+            int a = xdim;
+            xdim = ydim;
+            ydim = a;
+        }
+
         printf("The grid will part into a %d x %d block grid.\n",xdim,ydim);
 
         /* Compute the length and height of each block */
-        columns = NXPROB / xdim;
-	printf("Columns = %d\n", columns);
-        rows = NYPROB / ydim;
-	printf("Rows = %d\n", rows);
-        printf("Each block is %d x %d.\n",columns,rows);
+        rows = NXPROB / xdim;
+        columns = NYPROB / ydim;
+        printf("Each block is %d x %d.\n",rows,columns);
 
         /* Distribute work to workers.*/ 
-   ///  averow = NXPROB/numworkers;
-   ///  extra = NXPROB%numworkers;
         //offsetX = 0;
         //offsetY = 0;
         for (i=1; i<numworkers; i++){
@@ -130,22 +134,22 @@ int main (int argc, char *argv[]){
             //offsetY = ((i-1)/xdim)*rows;
 
             /* Find the neighbours of this block */
-            if (i < xdim) // if this is the first row
+            if (i < ydim) // if this is the first row
                 up = MPI_PROC_NULL;
             else
-                up = i - xdim;
+                up = i - ydim;
 
-            if (i >= ((ydim-1) * xdim)) //if this is the last row
+            if (i >= ((xdim-1) * ydim)) //if this is the last row
                down = MPI_PROC_NULL;
             else
-               down = i + xdim;
+               down = i + ydim;
 
-            if (i%xdim == 0)	// if this is the first column
+            if (i%ydim == 0)	// if this is the first column
                 left = MPI_PROC_NULL;
             else
                 left = i-1;
 
-            if (i%xdim == 3)	//if this is the last column
+            if (i%ydim == 3)	//if this is the last column
                 right = MPI_PROC_NULL;
             else
                 right = i+1;
@@ -176,7 +180,7 @@ int main (int argc, char *argv[]){
         left = MPI_PROC_NULL;
         right = 1;
         up = MPI_PROC_NULL;
-        down = xdim;
+        down = ydim;
 
     }else{
         /*************** workers code *****************/
@@ -200,16 +204,36 @@ int main (int argc, char *argv[]){
     }
     printf("LOG: Process %d: left:%d, right:%d, up:%d, down:%d\n",taskid,left,right,up,down);
 
-    malloc2darr(&local, columns, rows);
+    malloc2darr(&local[0], rows+2, columns+2);
+    malloc2darr(&local[1], rows+2, columns+2);
 
-    int sizes[2]    = {NXPROB, NYPROB};         /* global size */
-    int subsizes[2] = {columns, rows};          /* local size */
-    int starts[2]   = {0,0};                    /* where this one starts */
+    /* Initialize with 0's TODO mhpws den xreiazetai? */
+    for (iz=0; iz<2; iz++)
+        for (ix=0; ix<rows+2; ix++) 
+            for (iy=0; iy<columns+2; iy++) 
+                local[iz][ix][iy] = 0.0;
 
-    MPI_Datatype type, subarrtype;
-    MPI_Type_create_subarray(2, sizes, subsizes, starts, MPI_ORDER_C, MPI_FLOAT, &type);
-    MPI_Type_create_resized(type, 0, columns*sizeof(float), &subarrtype);
-    MPI_Type_commit(&subarrtype);
+
+
+    /* Define the datatype of send buffer elements */
+    int sendsizes[2]    = {NXPROB, NYPROB};    /* u size */
+    int sendsubsizes[2] = {rows, columns};     /* local size without halo */
+    int sendstarts[2]   = {0,0};
+
+    MPI_Datatype type, sendsubarrtype;
+    MPI_Type_create_subarray(2, sendsizes, sendsubsizes, sendstarts, MPI_ORDER_C, MPI_FLOAT, &type);
+    MPI_Type_create_resized(type, 0, columns*sizeof(float), &sendsubarrtype); /* h columns */
+    MPI_Type_commit(&sendsubarrtype);
+
+    /* Define the datatype of receive buffer elements */
+    int recvsizes[2]    = {rows+2, columns+2};         /* local array size */
+    int recvsubsizes[2] = {rows, columns};          /* local size without halo */
+    int recvstarts[2]   = {0,0};
+
+    MPI_Datatype recvsubarrtype;
+    MPI_Type_create_subarray(2, recvsizes, recvsubsizes, recvstarts, MPI_ORDER_C, MPI_FLOAT, &recvsubarrtype);
+    MPI_Type_commit(&recvsubarrtype);
+
 
     float *globalptr=NULL;
     if (taskid == MASTER) globalptr = &(u[0][0][0]);
@@ -224,8 +248,8 @@ int main (int argc, char *argv[]){
 
         /* Determine the starting point of every task's data */
         int disp = 0;
-        for (i=0; i<ydim; i++){
-            for (j=0; j<xdim; j++){
+        for (i=0; i<xdim; i++){
+            for (j=0; j<ydim; j++){
                 //printf("displs[%d]=%d\n",i*ydim+j,disp);
                 displs[i*ydim+j] = disp; /* h' mhpws xdim */
                 disp +=1;
@@ -242,24 +266,37 @@ int main (int argc, char *argv[]){
         printf("]\n");
     }
 
-    MPI_Scatterv(globalptr, sendcounts, displs, subarrtype, &(local[0][0]), columns*rows, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
+
+    MPI_Scatterv(globalptr, sendcounts, displs, sendsubarrtype, &(local[0][1][1]), columns*rows, recvsubarrtype, MASTER, MPI_COMM_WORLD);
 
 
     for ( i=0; i<numtasks; i++){
         if (taskid == i){
             printf("=========== To kommati tou %d =========\n",i);
-            for (j=0; j<rows; j++){
-                for (ix=0; ix<columns; ix++)
-                    printf("%.1f ", local[j][ix]);
-                printf("\n");
+            for (ix=0; ix<rows+2; ix++){
+                for (j=0; j<columns+2; j++)
+                    printf("%6.1f ", local[0][ix][j]);
+                printf("\n\n");
             }
         }
         MPI_Barrier(MPI_COMM_WORLD);
     }
-#if 0
+
+#if 0 
     if ( taskid!=MASTER){
     /* workers code */
 
+      /* Determine border elements.  Need to consider first and last columns. */
+      /* Obviously, row 0 can't exchange with row 0-1.  Likewise, the last */
+      /* row can't exchange with last+1.  */
+      if (offset==0) 
+         start=1;
+      else 
+         start=offset;
+      if ((offset+rows)==NXPROB) 
+         end=start+rows-2;
+      else 
+         end = start+rows-1;
 
       /* Begin doing STEPS iterations.  Must communicate border rows with */
       /* neighbors.  If I have the first or last grid row, then I only need */
@@ -375,6 +412,33 @@ int main (int argc, char *argv[]){
                MPI_COMM_WORLD);
    }
 #endif
+
+    /////////////////////
+    /* Vazw ka8e diergasia na alla3ei ton local, gia testing */
+    for (i=1; i<rows+1; i++){
+        for (j=1; j<columns+1; j++){
+            local[0][i][j] = taskid;
+        }
+    }
+    /////////////////////
+
+    /* Gather it all back */
+    MPI_Gatherv(&(local[0][1][1]), columns*rows,  recvsubarrtype, globalptr, sendcounts, displs, sendsubarrtype, 0, MPI_COMM_WORLD);
+
+    free2darr(&local[0]);
+    free2darr(&local[1]);
+
+    MPI_Type_free(&sendsubarrtype); /*TODO kai tous upoloipous */
+
+    if (taskid==MASTER){
+        printf("Processed grid:\n");
+        for (ix=0; ix<NXPROB; ix++){
+            for (j=0; j<NYPROB; j++)
+                printf("%6.1f ", u[0][ix][j]);
+            printf("\n\n");
+        }
+    }
+
     MPI_Finalize();
     return 0;
 }
@@ -383,23 +447,6 @@ int main (int argc, char *argv[]){
 /**************************************************************************
  *  subroutine update
  ****************************************************************************/
-#if 0
-void myupdate(int start, int end, int ny, float u1){
-    int ix, iy;
-    float u2[10][10];
-    
-    for (ix = start; ix <= end; ix++) 
-      for (iy = 1; iy <= ny-2; iy++) 
-         *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
-                          parms.cx * (*(u1+(ix+1)*ny+iy) +
-                          *(u1+(ix-1)*ny+iy) - 
-                          2.0 * *(u1+ix*ny+iy)) +
-                          parms.cy * (*(u1+ix*ny+iy+1) +
-                         *(u1+ix*ny+iy-1) - 
-                          2.0 * *(u1+ix*ny+iy));
-}
-
-#endif
 void update(int start, int end, int ny, float *u1, float *u2)
 {
    int ix, iy;
@@ -413,6 +460,7 @@ void update(int start, int end, int ny, float *u1, float *u2)
                          *(u1+ix*ny+iy-1) - 
                           2.0 * *(u1+ix*ny+iy));
 }
+
 /*****************************************************************************
  *  subroutine inidat
  *****************************************************************************/
@@ -501,4 +549,14 @@ int free2darr(float ***array) {
     free(*array);
 
     return 0;
+}
+
+/* TODO delete kai authn */
+void DUMMYDUMDUM(int nx, int ny, float *u) {
+int ix, iy;
+int n=0;
+
+for (ix = 0; ix <= nx-1; ix++) 
+  for (iy = 0; iy <= ny-1; iy++)
+     *(u+ix*ny+iy) = n++;
 }
