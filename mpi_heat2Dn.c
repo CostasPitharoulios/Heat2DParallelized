@@ -42,7 +42,7 @@ struct Parms {
   float cy;
 } parms = {0.1, 0.1};
 
-void inidat(), prtdat(), update(), myprint(), DUMMYDUMDUM();
+void inidat(), prtdat(), updateExternal, update(), myprint(), DUMMYDUMDUM();
 int malloc2darr(),free2darr(),isPrime();
 
 int main (int argc, char *argv[]){
@@ -283,20 +283,20 @@ int main (int argc, char *argv[]){
     }
 
 #if 0 
-    if ( taskid!=MASTER){
+///    if ( taskid!=MASTER){
     /* workers code */
 
       /* Determine border elements.  Need to consider first and last columns. */
       /* Obviously, row 0 can't exchange with row 0-1.  Likewise, the last */
       /* row can't exchange with last+1.  */
-      if (offset==0) 
+   /*   if (offset==0) 
          start=1;
       else 
          start=offset;
       if ((offset+rows)==NXPROB) 
          end=start+rows-2;
       else 
-         end = start+rows-1;
+         end = start+rows-1;*/
 
       /* Begin doing STEPS iterations.  Must communicate border rows with */
       /* neighbors.  If I have the first or last grid row, then I only need */
@@ -318,7 +318,7 @@ int main (int argc, char *argv[]){
 	   float* Rarray;
 	   float* Larray;
 	   float* Uarray;
-	   float* Darray; //these are one dimensional arrays which keep the values of neighbors (A,D,B,N)
+	   float* Darray; //these are one dimensional arrays which keep the values of neighbors (RIGHT, LEFT, UP, DOWN))
 
 	   /// *** RECEIVING PROCEDURES *** ///
 	   if (right !=  MPI_PROC_NULL){
@@ -360,9 +360,10 @@ int main (int argc, char *argv[]){
 	   }
 
 	 /// *** CALCULATION OF INTERNAL DATA *** ///
+	   update(2, xdim-1, ydim,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
+	   //line 0 contains neighbor's values and line 1 is the extrnal line of the block, so we don't want them. The same for the one before last and the last line.
 
 
-///	   myupdate(1,xdim-2,ydim,&local[1][1],&local[1][1]);
 
 	   MPI_Wait(&RRequestR , MPI_STATUS_IGNORE );
 	   MPI_Wait(&RRequestL , MPI_STATUS_IGNORE );
@@ -370,7 +371,9 @@ int main (int argc, char *argv[]){
 	   MPI_Wait(&RRequestD , MPI_STATUS_IGNORE );
 
 	 /// *** CALCULATION OF EXTERNAL DATA *** ///
-////	   myupdate(0,0, &local[0][0], &
+	   updateExternal(1,xdim, ydim, &local[iz][0][0], &local[1-iz][0][0]);
+
+	   iz = 1-iz; 
 
            MPI_Wait(&SRequestR , MPI_STATUS_IGNORE );
            MPI_Wait(&SRequestL , MPI_STATUS_IGNORE );
@@ -378,38 +381,6 @@ int main (int argc, char *argv[]){
            MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
        }
 
-   }
-#endif
-#if 0
-///OLD VERSION COSTAS
-      printf("Task %d received work. Beginning time steps...\n",taskid);
-      iz = 0;
-      for (it = 1; it <= STEPS; it++)
-      {
-         if (left != NONE)
-         {
-            MPI_Send(&u[iz][offset][0], NYPROB, MPI_FLOAT, left, RTAG, MPI_COMM_WORLD);
-            source = left;
-            msgtype = LTAG;
-            MPI_Recv(&u[iz][offset-1][0], NYPROB, MPI_FLOAT, source, msgtype, MPI_COMM_WORLD, &status);
-         }
-         if (right != NONE)
-         {
-            MPI_Send(&u[iz][offset+rows-1][0], NYPROB, MPI_FLOAT, right, LTAG, MPI_COMM_WORLD);
-            source = right;
-            msgtype = RTAG;
-            MPI_Recv(&u[iz][offset+rows][0], NYPROB, MPI_FLOAT, source, msgtype, MPI_COMM_WORLD, &status);
-         }
-         /* Now call update to update the value of grid points */
-         update(start,end,NYPROB,&u[iz][0][0],&u[1-iz][0][0]);
-         iz = 1 - iz;
-      }
-      
-      /* Finally, send my portion of final results back to master */
-      MPI_Send(&offset, 1, MPI_INT, MASTER, DONE, MPI_COMM_WORLD);
-      MPI_Send(&rows, 1, MPI_INT, MASTER, DONE, MPI_COMM_WORLD);
-      MPI_Send(&u[iz][offset][0], rows*NYPROB, MPI_FLOAT, MASTER, DONE, 
-               MPI_COMM_WORLD);
    }
 #endif
 
@@ -446,12 +417,14 @@ int main (int argc, char *argv[]){
 
 /**************************************************************************
  *  subroutine update
+/// gets start = 2, end = xdim-1, ny = ydim = number of block columns without 
+/// the two which keep LEFT AND RIGHT neighbors' values
  ****************************************************************************/
 void update(int start, int end, int ny, float *u1, float *u2)
 {
    int ix, iy;
    for (ix = start; ix <= end; ix++) 
-      for (iy = 1; iy <= ny-2; iy++) 
+      for (iy = 2; iy <= ny-3; iy++) 
          *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
@@ -460,6 +433,49 @@ void update(int start, int end, int ny, float *u1, float *u2)
                          *(u1+ix*ny+iy-1) - 
                           2.0 * *(u1+ix*ny+iy));
 }
+
+
+/**************************************************************************
+ *  subroutine updateExternal
+///gets start = 1, end = xdim, ny= ydim = number of block columns without 
+///the two which keep LEFT AND RIGHT neighbors' values
+ ****************************************************************************/
+void updateExternal(int start, int end, int ny, float *u1, float *u2)
+{
+    int ix, iy;
+	/// *** CALCULATING FIRST EXTERNAL ROW *** ///
+    ix = start;
+    for (iy = 1; iy <= ny; iy++) 
+         *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
+                          parms.cx * (*(u1+(ix+1)*ny+iy) +
+                          *(u1+(ix-1)*ny+iy) - 
+                          2.0 * *(u1+ix*ny+iy)) +
+                          parms.cy * (*(u1+ix*ny+iy+1) +
+                         *(u1+ix*ny+iy-1) - 
+                          2.0 * *(u1+ix*ny+iy));
+	/// CALCULATING LAST EXTERNAL ROW *** ///
+    ix =  end;
+    for (iy = 1; iy <= ny; iy++) 
+         *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
+                          parms.cx * (*(u1+(ix+1)*ny+iy) +
+                          *(u1+(ix-1)*ny+iy) - 
+                          2.0 * *(u1+ix*ny+iy)) +
+                          parms.cy * (*(u1+ix*ny+iy+1) +
+                         *(u1+ix*ny+iy-1) - 
+                          2.0 * *(u1+ix*ny+iy));
+	/// *** CALCULATING FIRST AND LAST EXTERNAL COLUMN *** ///
+    for (ix = start+1; ix<end-1; ix++)
+        for (iy = 1; iy<= ny; iy+=(ny-1))
+	      *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
+                          parms.cx * (*(u1+(ix+1)*ny+iy) +
+                          *(u1+(ix-1)*ny+iy) - 
+                          2.0 * *(u1+ix*ny+iy)) +
+                          parms.cy * (*(u1+ix*ny+iy+1) +
+                         *(u1+ix*ny+iy-1) - 
+                          2.0 * *(u1+ix*ny+iy)); 
+
+}
+
 
 /*****************************************************************************
  *  subroutine inidat
