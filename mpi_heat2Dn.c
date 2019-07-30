@@ -289,80 +289,71 @@ int main (int argc, char *argv[]){
 	//Srart MPI_Wtime;
     start = MPI_Wtime();
 	printf("Task %d received work. Beginning time steps...\n",taskid);
-    
-	MPI_Request RRequestR,RRequestL, RRequestU, RRequestD;  //...A = ANATOLIKOS GEITONAS , ...D = DYTIKO, ...B = BOREIOS, ...N = NOTIOS
-        MPI_Request SRequestR,  SRequestL,  SRequestU,  SRequestD;
-	iz = 0;
-	for (it = 1; it <= STEPS; it++)
-        {
-	   
-//	   float* Rarray;
-//	   float* Larray;
-//	   float* Uarray;
-//	   float* Darray; //these are one dimensional arrays which keep the values of neighbors (RIGHT, LEFT, UP, DOWN))
 
+    MPI_Request RRequestR,RRequestL, RRequestU, RRequestD;  //...A = ANATOLIKOS GEITONAS , ...D = DYTIKO, ...B = BOREIOS, ...N = NOTIOS
+    MPI_Request SRequestR,  SRequestL,  SRequestU,  SRequestD;
+	iz = 0;
+	for (it = 1; it <= STEPS; it++){
+	   
 	   // these help us send a column of the matrix
-	   MPI_Datatype column; 
-	   MPI_Type_vector(xdim, 1,ydim, MPI_FLOAT, &column);
-	   MPI_Type_commit(&column);
+        MPI_Datatype column; 
+        MPI_Type_vector(xdim, 1,ydim, MPI_FLOAT, &column);
+        MPI_Type_commit(&column);
 
 
 	   /// *** RECEIVING PROCEDURES *** ///
-	   if (left !=  MPI_PROC_NULL){
-//	       Rarray = malloc(sizeof(float) * xdim); ///WARNING: maybe xdim
-  	       MPI_Irecv(&(local[iz][0]), 1, column, left,0, MPI_COMM_WORLD, &RRequestR); ///WARNING: 0??
-	   }
-	   if (right !=  MPI_PROC_NULL){
-   	       //Larray = malloc(sizeof(float) * xdim);
-	       MPI_Irecv(&(local[iz][ydim+1]), 1, column, right,0, MPI_COMM_WORLD, &RRequestL); ///WARNING: 0?
-	   }
-	   if (down !=  MPI_PROC_NULL){
-	       //Uarray = malloc(sizeof(float) * ydim);
-	       MPI_Irecv(&(local[iz][0][0]), ydim, MPI_FLOAT, down, 0, MPI_COMM_WORLD, &RRequestU); ///WARNING: 0??
-	   }
-	   if (up !=  MPI_PROC_NULL){
-    	       MPI_Irecv(&(local[iz][xdim+1][0]), ydim, MPI_FLOAT, up,0, MPI_COMM_WORLD, &RRequestD); ///WARNING: 0??
-	   }
+        if (left !=  MPI_PROC_NULL){
+        //	       Rarray = malloc(sizeof(float) * xdim); ///WARNING: maybe xdim
+            MPI_Irecv(&(local[iz][0]), 1, column, left,0, MPI_COMM_WORLD, &RRequestR); ///WARNING: 0??
+        }
+        if (right !=  MPI_PROC_NULL){
+           //Larray = malloc(sizeof(float) * xdim);
+            MPI_Irecv(&(local[iz][ydim+1]), 1, column, right,0, MPI_COMM_WORLD, &RRequestL); ///WARNING: 0?
+        }
+        if (down !=  MPI_PROC_NULL){
+           //Uarray = malloc(sizeof(float) * ydim);
+            MPI_Irecv(&(local[iz][0][0]), ydim, MPI_FLOAT, down, 0, MPI_COMM_WORLD, &RRequestU); ///WARNING: 0??
+        }
+        if (up !=  MPI_PROC_NULL){
+            MPI_Irecv(&(local[iz][xdim+1][0]), ydim, MPI_FLOAT, up,0, MPI_COMM_WORLD, &RRequestD); ///WARNING: 0??
+        }
 	   
-
+    
 	  /// *** SENDING PROCEDURES *** ///
+        if (right != MPI_PROC_NULL){
+            MPI_Isend(local[iz][ydim], 1, column, right, 0, MPI_COMM_WORLD, &SRequestR);  //sends column to RIGHT neighbor
+        }
+        if (left != MPI_PROC_NULL){
+            MPI_Isend(local[iz][1], 1, column, left ,0, MPI_COMM_WORLD, &SRequestL);	//sends column to left neighbor
+        }
+        if (up != MPI_PROC_NULL){
+            MPI_Isend(&local[iz][1][0], ydim, MPI_FLOAT, up, 0, MPI_COMM_WORLD, &SRequestU);  //sends to UP neighbor
+        }
+        if (down != MPI_PROC_NULL){
+            MPI_Isend(&local[iz][xdim][0], ydim, MPI_FLOAT, down ,0, MPI_COMM_WORLD, &SRequestD); //sends to DOWN neighbor
+        }
 
-	   
-	   if (right != MPI_PROC_NULL){
-  	       MPI_Isend(local[iz][ydim], 1, column, right, 0, MPI_COMM_WORLD, &SRequestR);  //sends column to RIGHT neighbor
-	   }
-           if (left != MPI_PROC_NULL){
-	       MPI_Isend(local[iz][1], 1, column, left ,0, MPI_COMM_WORLD, &SRequestL);	//sends column to left neighbor
-	   }
-           if (up != MPI_PROC_NULL){
-  	       MPI_Isend(&local[iz][1][0], ydim, MPI_FLOAT, up, 0, MPI_COMM_WORLD, &SRequestU);  //sends to UP neighbor
-	   }
-           if (down != MPI_PROC_NULL){
-	       MPI_Isend(&local[iz][xdim][0], ydim, MPI_FLOAT, down ,0, MPI_COMM_WORLD, &SRequestD); //sends to DOWN neighbor
-	   }
+        /// *** CALCULATION OF INTERNAL DATA *** ///
+        update(2, xdim-1, ydim,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
+        //line 0 contains neighbor's values and line 1 is the extrnal line of the block, so we don't want them. The same for the one before last and the last line.
 
-	   /// *** CALCULATION OF INTERNAL DATA *** ///
-	   update(2, xdim-1, ydim,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
-	   //line 0 contains neighbor's values and line 1 is the extrnal line of the block, so we don't want them. The same for the one before last and the last line.
+        MPI_Wait(&RRequestR , MPI_STATUS_IGNORE );
+        MPI_Wait(&RRequestL , MPI_STATUS_IGNORE );
+        MPI_Wait(&RRequestU , MPI_STATUS_IGNORE );
+        MPI_Wait(&RRequestD , MPI_STATUS_IGNORE );
 
-	   MPI_Wait(&RRequestR , MPI_STATUS_IGNORE );
-	   MPI_Wait(&RRequestL , MPI_STATUS_IGNORE );
- 	   MPI_Wait(&RRequestU , MPI_STATUS_IGNORE );
-	   MPI_Wait(&RRequestD , MPI_STATUS_IGNORE );
+        /// *** CALCULATION OF EXTERNAL DATA *** ///
+        updateExternal(1,xdim, ydim, &local[iz][0][0], &local[1-iz][0][0]);
 
-	 /// *** CALCULATION OF EXTERNAL DATA *** ///
-	   updateExternal(1,xdim, ydim, &local[iz][0][0], &local[1-iz][0][0]);
+        iz = 1-iz; 
 
-	   iz = 1-iz; 
-
-           MPI_Wait(&SRequestR , MPI_STATUS_IGNORE );
-           MPI_Wait(&SRequestL , MPI_STATUS_IGNORE );
-           MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
-           MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
-       }
+        MPI_Wait(&SRequestR , MPI_STATUS_IGNORE );
+        MPI_Wait(&SRequestL , MPI_STATUS_IGNORE );
+        MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
+        MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
+    }
     finish = MPI_Wtime();
 
-   }
 ///#endif
 #if 0
     /////////////////////
