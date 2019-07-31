@@ -212,6 +212,8 @@ int main (int argc, char *argv[]){
             for (iy=0; iy<columns+2; iy++) 
                 local[iz][ix][iy] = 0.0;
 
+    /* Preparing the arguments of Scatterv */
+
     /* Define the datatype of send buffer elements */
     int sendsizes[2]    = {NXPROB, NYPROB};    /* u size */
     int sendsubsizes[2] = {rows, columns};     /* local size without halo */
@@ -231,15 +233,14 @@ int main (int argc, char *argv[]){
     MPI_Type_create_subarray(2, recvsizes, recvsubsizes, recvstarts, MPI_ORDER_C, MPI_FLOAT, &recvsubarrtype);
     MPI_Type_commit(&recvsubarrtype);
 
-
     float *globalptr=NULL;
-    if (taskid == MASTER) globalptr = &(u[0][0][0]);
+    int *sendcounts=NULL, *displs=NULL; 
 
-    /* Scatter array to all processes */
-    int *sendcounts = (int*)malloc(sizeof(int)*xdim*ydim);
-    int *displs = (int*)malloc(sizeof(int)*xdim*ydim);
-    
     if (taskid == MASTER){
+        globalptr = &(u[0][0][0]);
+        sendcounts = (int*)malloc(sizeof(int)*xdim*ydim);
+        displs = (int*)malloc(sizeof(int)*xdim*ydim);
+
         /* Every process has one piece */
         for (i=0; i<xdim*ydim; i++) sendcounts[i]=1; 
 
@@ -253,20 +254,18 @@ int main (int argc, char *argv[]){
             }
             disp += (rows-1)*ydim; /* h' rows, ydim klp */
         }
+
+        //printf("displs=[ ");
+        //for (i=0; i<ydim*xdim; i++){
+        //        printf("%d ",displs[i]);
+        //}
+        //printf("]\n");
     }
 
-    if (taskid == 0){
-        printf("displs=[ ");
-        for (i=0; i<ydim*xdim; i++){
-                printf("%d ",displs[i]);
-        }
-        printf("]\n");
-    }
-
-
+    /* Scatter array to all processes */
     MPI_Scatterv(globalptr, sendcounts, displs, sendsubarrtype, &(local[0][0][0]), columns*rows, recvsubarrtype, MASTER, MPI_COMM_WORLD);
 
-
+#if 0
     for ( i=0; i<numtasks; i++){
         if (taskid == i){
             printf("=========== To kommati tou %d =========\n",i);
@@ -278,15 +277,49 @@ int main (int argc, char *argv[]){
         }
         MPI_Barrier(MPI_COMM_WORLD);
     }
+#endif
 
-///#if 0 
+    /* Mia apostolh gia na paradeigma */
+
+    iz=0;
+    MPI_Request Srequest,Rrequest;
+    if (up == MASTER){
+        MPI_Irecv(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, MPI_COMM_WORLD, &Rrequest); 
+        printf("~~~~~~~%d: 8a steilw [ ", taskid);
+        for(i=0; i<columns; i++)
+            printf("%3.1f ",local[iz][1][1+i]);
+        printf("]\n");
+        MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up ,0, MPI_COMM_WORLD, &Srequest);
+        MPI_Wait(&Rrequest,&status);
+        printf("~~~~~~~%d: Elava [ ", taskid);
+        for(i=0; i<columns; i++)
+            printf("%3.1f ",local[iz][0][1+i]);
+        printf("]\n");
+
+        MPI_Wait(&Srequest,&status);
+    }
+    if (taskid == MASTER){
+        MPI_Irecv(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down ,0, MPI_COMM_WORLD, &Rrequest); 
+        printf("~~~~~~~%d: 8a steilw [ ", taskid);
+        for(i=0; i<columns; i++)
+            printf("%3.1f ",local[iz][rows][1+i]);
+        printf("]\n");
+        MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, MPI_COMM_WORLD, &Srequest);
+        MPI_Wait(&Rrequest,&status);
+        printf("~~~~~~~%d: Elava [ ", taskid);
+        for(i=0; i<columns; i++)
+            printf("%3.1f ",local[iz][rows+1][1+i]);
+        printf("]\n");
+
+        MPI_Wait(&Srequest,&status);
+    }
+
+#if 0 
     /* workers code */
 
 
-
-	//MPI_Barrier(MPI_COMM_WORLD);
-
 	//Srart MPI_Wtime;
+	MPI_Barrier(MPI_COMM_WORLD);
     start = MPI_Wtime();
 	printf("Task %d received work. Beginning time steps...\n",taskid);
 
@@ -302,7 +335,6 @@ int main (int argc, char *argv[]){
 
 
 	    /// *** RECEIVING PROCEDURES *** ///
-#if 0
         if (left !=  MPI_PROC_NULL){
         //	       Rarray = malloc(sizeof(float) * xdim); ///WARNING: maybe xdim
             MPI_Irecv(&(local[iz][0]), 1, column, left,0, MPI_COMM_WORLD, &RRequestL); ///WARNING: 0??
@@ -311,32 +343,24 @@ int main (int argc, char *argv[]){
            //Larray = malloc(sizeof(float) * xdim);
             MPI_Irecv(&(local[iz][columns+1]), 1, column, right,0, MPI_COMM_WORLD, &RRequestR); ///WARNING: 0?
         }
-#endif
         if (down !=  MPI_PROC_NULL){
            //Uarray = malloc(sizeof(float) * ydim);
             MPI_Irecv(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, MPI_COMM_WORLD, &RRequestD); ///WARNING: 0??
         }
-//#endif
-//#if 0
         if (up !=  MPI_PROC_NULL){
             MPI_Irecv(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, MPI_COMM_WORLD, &RRequestU); ///WARNING: 0??
         }
-//#endif	   
-#if 0    
+
 	  /// *** SENDING PROCEDURES *** ///
-#if 0
         if (right != MPI_PROC_NULL){
             MPI_Isend(local[iz][columns], 1, column, right, 0, MPI_COMM_WORLD, &SRequestR);  //sends column to RIGHT neighbor
         }
         if (left != MPI_PROC_NULL){
             MPI_Isend(local[iz][1], 1, column, left ,0, MPI_COMM_WORLD, &SRequestL);	//sends column to left neighbor
         }
-#endif
-//#if 0
         if (up != MPI_PROC_NULL){
             MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, MPI_COMM_WORLD, &SRequestU);  //sends to UP neighbor
         }
-//#endif
         if (down != MPI_PROC_NULL){
             MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, MPI_COMM_WORLD, &SRequestD); //sends to DOWN neighbor
         }
@@ -358,12 +382,11 @@ int main (int argc, char *argv[]){
         MPI_Wait(&SRequestR , MPI_STATUS_IGNORE );
         MPI_Wait(&SRequestL , MPI_STATUS_IGNORE );
         MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
-        MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
-#endif
   ////  }
     finish = MPI_Wtime();
 
-///#endif
+#endif
+
 #if 0
     /////////////////////
     /* Vazw ka8e diergasia na alla3ei ton local, gia testing */
@@ -373,7 +396,6 @@ int main (int argc, char *argv[]){
         }
     }
     /////////////////////
-
 #endif
 
     /* Gather it all back */
@@ -384,6 +406,7 @@ int main (int argc, char *argv[]){
 
     MPI_Type_free(&sendsubarrtype); /*TODO kai tous upoloipous */
 
+#if 0
     printf("Process:%d, Elapsed time: %e secs\n",taskid,finish-start);
     if (taskid==MASTER){
         printf("Processed grid:\n");
@@ -393,6 +416,7 @@ int main (int argc, char *argv[]){
             printf("\n\n");
         }
     }
+#endif
 
     MPI_Finalize();
     return 0;
