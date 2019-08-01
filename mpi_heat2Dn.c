@@ -245,14 +245,13 @@ int main (int argc, char *argv[]){
     MPI_Barrier(MPI_COMM_WORLD);
     start = MPI_Wtime();
 
-    //MPI_Request RRequestR, RRequestL, RRequestU, RRequestD;
-    //MPI_Request SRequestR, SRequestL, SRequestU, SRequestD;
+    MPI_Request RRequestR, RRequestL, RRequestU, RRequestD;
+    MPI_Request SRequestR, SRequestL, SRequestU, SRequestD;
 
-             /* Datatypes for matrix column */
+    /* Datatypes for matrix column */
     MPI_Datatype column; 
     MPI_Type_vector(rows+2, 1,columns+2, MPI_FLOAT, &column); /* TODO send two less floats */
     MPI_Type_commit(&column);
-
 
     MPI_Request req[8];
     MPI_Status  stat[8];
