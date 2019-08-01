@@ -377,7 +377,7 @@ int main (int argc, char *argv[]){
 
 
         /// *** CALCULATION OF EXTERNAL DATA *** ///
-        updateExternal(1,rows, columns, &local[iz][0][0], &local[1-iz][0][0]);
+        updateExternal(1,rows, columns,right,left,up,down, &local[iz][0][0], &local[1-iz][0][0]);
 
         iz = 1-iz; 
 
@@ -386,7 +386,7 @@ int main (int argc, char *argv[]){
         if (up !=  MPI_PROC_NULL) MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
         if (down !=  MPI_PROC_NULL) MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
 
-#if 0
+//#if 0
         for ( i=0; i<numtasks; i++){
             if (taskid == i){
                 printf("=========== To kommati tou %d meta thn antallagh =========\n",i);
@@ -404,7 +404,7 @@ int main (int argc, char *argv[]){
             }
             MPI_Barrier(MPI_COMM_WORLD);
         }
-#endif
+//#endif
 
 
     }
@@ -478,34 +478,78 @@ void updateInternal(int start, int end, int ny, float *u1, float *u2)
 ///gets start = 1, end = xdim, ny= ydim = number of block columns without 
 ///the two which keep LEFT AND RIGHT neighbors' values
  ****************************************************************************/
-void updateExternal(int start, int end, int ny, float *u1, float *u2)
+void updateExternal(int start, int end, int ny,int right, int left,int up,int down, float *u1, float *u2)
 {
     int ix, iy;
     ny+=2;
+    end+=2;
 	/// *** CALCULATING FIRST EXTERNAL ROW *** ///
-    ix = start;
-    for (iy = 1; iy <= ny-2; iy++) 
-         *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
-                          parms.cx * (*(u1+(ix+1)*ny+iy) +
-                          *(u1+(ix-1)*ny+iy) - 
-                          2.0 * *(u1+ix*ny+iy)) +
-                          parms.cy * (*(u1+ix*ny+iy+1) +
-                         *(u1+ix*ny+iy-1) - 
-                          2.0 * *(u1+ix*ny+iy));
-	/// CALCULATING LAST EXTERNAL ROW *** ///
-    ix =  end;
-    for (iy = 1; iy <= ny-2; iy++) 
-         *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
-                          parms.cx * (*(u1+(ix+1)*ny+iy) +
-                          *(u1+(ix-1)*ny+iy) - 
-                          2.0 * *(u1+ix*ny+iy)) +
-                          parms.cy * (*(u1+ix*ny+iy+1) +
-                         *(u1+ix*ny+iy-1) - 
-                          2.0 * *(u1+ix*ny+iy));
-	/// *** CALCULATING FIRST AND LAST EXTERNAL COLUMN *** ///
+    if (up != MPI_PROC_NULL) //this is because if the block haw not an up neighbor we shouldnt's caclulate halo
+       ix = start;
+    else
+	ix = start+1;
 
-    iy = 1;
-    for (ix = start; ix<end; ix++)
+    if (left != MPI_PROC_NULL) //this is because if the block haw not a left neighbor we shouldnt's caclulate halo
+        iy = 1;
+    else
+        iy = 2;
+
+    int endny;
+    if (right !=  MPI_PROC_NULL)
+        endny = ny-3;
+    else
+        endny = ny-3;
+
+    for (; iy <= endny; iy++) 
+         *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
+                          parms.cx * (*(u1+(ix+1)*ny+iy) +
+                          *(u1+(ix-1)*ny+iy) - 
+                          2.0 * *(u1+ix*ny+iy)) +
+                          parms.cy * (*(u1+ix*ny+iy+1) +
+                         *(u1+ix*ny+iy-1) - 
+                          2.0 * *(u1+ix*ny+iy));
+
+	/// CALCULATING LAST EXTERNAL ROW *** ///
+    if (down != MPI_PROC_NULL)
+       ix =  end-2;
+    else
+	ix = end-3;
+    if (left != MPI_PROC_NULL) //this is because if the block haw not a left neighbor we shouldnt's caclulate halo
+        iy = 1;
+    else
+        iy = 2;
+    if (right !=  MPI_PROC_NULL)
+        endny = ny-2;
+    else
+        endny = ny-3;
+    for (; iy <= endny; iy++) 
+         *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
+                          parms.cx * (*(u1+(ix+1)*ny+iy) +
+                          *(u1+(ix-1)*ny+iy) - 
+                          2.0 * *(u1+ix*ny+iy)) +
+                          parms.cy * (*(u1+ix*ny+iy+1) +
+                         *(u1+ix*ny+iy-1) - 
+                          2.0 * *(u1+ix*ny+iy));
+	/// *** CALCULATING FIRST EXTERNAL COLUMN *** ///
+
+    if (up != MPI_PROC_NULL) //this is because if the block haw not an up neighbor we shouldnt's caclulate halo
+       ix = start;
+    else
+        ix = start+1;
+
+
+    if (left != MPI_PROC_NULL) //this is because if the block haw not a left neighbor we shouldnt's caclulate halo
+        iy = 1;
+    else
+        iy = 2;
+    
+    int endloop;
+    if (down != MPI_PROC_NULL)
+       endloop = end -2;
+    else
+       endloop = end -3; 
+
+    for (; ix<endloop; ix++)
         *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
@@ -513,10 +557,24 @@ void updateExternal(int start, int end, int ny, float *u1, float *u2)
                           parms.cy * (*(u1+ix*ny+iy+1) +
                          *(u1+ix*ny+iy-1) - 
                           2.0 * *(u1+ix*ny+iy)); 
+ /// *** CALCULATING LAST EXTERNAL COLUMN *** ///
 
+   if (up != MPI_PROC_NULL) //this is because if the block haw not an up neighbor we shouldnt's caclulate halo
+       ix = start;
+   else
+       ix = start+1; 
 
-    iy = ny-2;
-    for (ix = start; ix<end; ix++)
+   if (right != MPI_PROC_NULL)
+        iy = ny -2;
+    else 
+        iy = ny-3;
+
+    if (down != MPI_PROC_NULL)
+       endloop = end -2; //the down right corner is calculated from row calculation, so we don't need to calculate again
+    else 
+       endloop = end -3; // the down right corner is calculated from row calculation, so we don't need to calculate again
+    printf("end =%d, endloop=%d\n\n", end, endloop);
+    for (; ix<endloop; ix++)
        *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
                           2.0 * *(u1+ix*ny+iy)) +
