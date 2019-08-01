@@ -27,8 +27,8 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define NXPROB      320                 /* x dimension of problem grid */
-#define NYPROB      256                 /* y dimension of problem grid */
+#define NXPROB      640                 /* x dimension of problem grid */
+#define NYPROB      1024                 /* y dimension of problem grid */
 #define STEPS       100                /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
@@ -148,6 +148,8 @@ int main (int argc, char *argv[]){
 
             /*  Now send startup information to each worker  */
             dest = i;
+            MPI_Send(&xdim, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
+            MPI_Send(&ydim, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&columns, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&rows, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&left, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
@@ -167,13 +169,21 @@ int main (int argc, char *argv[]){
 
         /* Receive my offset, rows, neighbors and grid partition from master */
         source = MASTER; msgtype = BEGIN;
-        MPI_Recv(&columns, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status); MPI_Recv(&rows, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+        MPI_Recv(&xdim, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+        MPI_Recv(&ydim, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+        MPI_Recv(&columns, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+        MPI_Recv(&rows, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
         MPI_Recv(&left, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
         MPI_Recv(&right, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
         MPI_Recv(&up, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
         MPI_Recv(&down, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
     }
     printf("LOG: Process %d: left:%d, right:%d, up:%d, down:%d\n",taskid,left,right,up,down);
+
+    /* Define a new communicator with cartesian topology information, for communication optimization */
+    MPI_Comm comm_cart;
+    int dim[2] = {xdim,ydim}, period[2] = {0,0};
+    MPI_Cart_create(MPI_COMM_WORLD, 2, dim, period, 0, &comm_cart);
 
     /* Allocate contigious memory for the 2d arrays local[0] and local[1] */
     malloc2darr(&local[0], rows+2, columns+2);
@@ -247,16 +257,16 @@ int main (int argc, char *argv[]){
         MPI_Type_commit(&column);
 
 	    /// *** RECEIVING PROCEDURES *** ///
-        MPI_Irecv(&(local[iz][0][0]), 1, column, left, 0, MPI_COMM_WORLD, &RRequestL); ///WARNING: 0??
-        MPI_Irecv(&(local[iz][0][columns+1]), 1, column, right, 0, MPI_COMM_WORLD, &RRequestR); ///WARNING: 0?
-        MPI_Irecv(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, MPI_COMM_WORLD, &RRequestD); ///WARNING: 0??
-        MPI_Irecv(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, MPI_COMM_WORLD, &RRequestU); ///WARNING: 0??
+        MPI_Irecv(&(local[iz][0][0]), 1, column, left, 0, comm_cart, &RRequestL); ///WARNING: 0??
+        MPI_Irecv(&(local[iz][0][columns+1]), 1, column, right, 0, comm_cart, &RRequestR); ///WARNING: 0?
+        MPI_Irecv(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &RRequestD); ///WARNING: 0??
+        MPI_Irecv(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &RRequestU); ///WARNING: 0??
 
 	    /// *** SENDING PROCEDURES *** ///
-        MPI_Isend(&(local[iz][0][columns]), 1, column, right, 0, MPI_COMM_WORLD, &SRequestR);  //sends column to RIGHT neighbor
-        MPI_Isend(&(local[iz][0][1]), 1, column, left , 0, MPI_COMM_WORLD, &SRequestL);	//sends column to left neighbor
-        MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, MPI_COMM_WORLD, &SRequestU);  //sends to UP neighbor
-        MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, MPI_COMM_WORLD, &SRequestD); //sends to DOWN neighbor
+        MPI_Isend(&(local[iz][0][columns]), 1, column, right, 0, comm_cart, &SRequestR);  //sends column to RIGHT neighbor
+        MPI_Isend(&(local[iz][0][1]), 1, column, left , 0, comm_cart, &SRequestL);	//sends column to left neighbor
+        MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &SRequestU);  //sends to UP neighbor
+        MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &SRequestD); //sends to DOWN neighbor
 
         /// *** CALCULATION OF INTERNAL DATA *** ///
         updateInternal(2, rows-1, columns,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
