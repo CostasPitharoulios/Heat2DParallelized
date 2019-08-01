@@ -249,52 +249,56 @@ int main (int argc, char *argv[]){
     MPI_Request SRequestR, SRequestL, SRequestU, SRequestD;
 
     /* Datatypes for matrix column */
+    printf("Enaa\n");
     MPI_Datatype column; 
     MPI_Type_vector(rows+2, 1,columns+2, MPI_FLOAT, &column); /* TODO send two less floats */
     MPI_Type_commit(&column);
+    printf("Du\n");
 
+    /*
     MPI_Request req[8];
     MPI_Status  stat[8];
 
-    MPI_Recv_init(&(local[iz][0][0]), 1, column, left, 0, comm_cart, &req[0]);
-    MPI_Recv_init(&(local[iz][0][columns+1]), 1, column, right, 0, comm_cart, &req[1]);
-    MPI_Recv_init(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &req[2]); 
-    MPI_Recv_init(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &req[3]); 
+    printf("Tres\n");
+    MPI_Recv_init(&(local[iz][0][0]), 1, column, left, 0, comm_cart, &(req[0]));
+    MPI_Recv_init(&(local[iz][0][columns+1]), 1, column, right, 0, comm_cart, &(req[1]));
+    MPI_Recv_init(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &(req[2])); 
+    MPI_Recv_init(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &(req[3])); 
 
+    printf("Quatro\n");
     MPI_Send_init(&(local[iz][0][columns]), 1, column, right, 0, comm_cart, &req[4]);   //sends column to RIGHT neighbor
     MPI_Send_init(&(local[iz][0][1]), 1, column, left , 0, comm_cart, &req[5]);      //sends column to left neighbor
     MPI_Send_init(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &req[6]);  //sends to UP neighbor
     MPI_Send_init(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &req[7]); //sends to DOWN neighbor
+    */
 
+    MPI_Request r;
+    MPI_Recv_init(&(local[iz][0][0]), 1, column, left, 0, comm_cart, &r);
 
     iz = 0;
 
-
     for (it = 1; it <= STEPS; it++){
 
-	  	/* Datatypes for matrix column */
-        MPI_Datatype column; 
-        MPI_Type_vector(rows+2, 1,columns+2, MPI_FLOAT, &column); /* TODO send two less floats */
-        MPI_Type_commit(&column);
-
-	    /// *** RECEIVING PROCEDURES *** ///
-        MPI_Irecv(&(local[iz][0][0]), 1, column, left, 0, comm_cart, &req[0]); ///WARNING: 0??
-        MPI_Irecv(&(local[iz][0][columns+1]), 1, column, right, 0, comm_cart, &req[1]); ///WARNING: 0?
-        MPI_Irecv(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &req[2]); ///WARNING: 0??
-        MPI_Irecv(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &req[3]); ///WARNING: 0??
+        /// *** RECEIVING PROCEDURES *** ///
+        MPI_Irecv(&(local[iz][0][0]), 1, column, left, 0, comm_cart, &RRequestL); ///WARNING: 0??
+        MPI_Irecv(&(local[iz][0][columns+1]), 1, column, right, 0, comm_cart, &RRequestR); ///WARNING: 0?
+        MPI_Irecv(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &RRequestD); ///WARNING: 0??
+        MPI_Irecv(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &RRequestU); ///WARNING: 0??
 
 	    /// *** SENDING PROCEDURES *** ///
-        MPI_Isend(&(local[iz][0][columns]), 1, column, right, 0, comm_cart, &req[4]);  //sends column to RIGHT neighbor
-        MPI_Isend(&(local[iz][0][1]), 1, column, left , 0, comm_cart, &req[5]);	//sends column to left neighbor
-        MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &req[6]);  //sends to UP neighbor
-        MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &req[7]); //sends to DOWN neighbor
+        MPI_Isend(&(local[iz][0][columns]), 1, column, right, 0, comm_cart, &SRequestR);  //sends column to RIGHT neighbor
+        MPI_Isend(&(local[iz][0][1]), 1, column, left , 0, comm_cart, &SRequestL);	//sends column to left neighbor
+        MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &SRequestU);  //sends to UP neighbor
+        MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &SRequestD); //sends to DOWN neighbor
 
         /// *** CALCULATION OF INTERNAL DATA *** ///
         updateInternal(2, rows-1, columns,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
         //line 0 contains neighbor's values and line 1 is the extrnal line of the block, so we don't want them. The same for the one before last and the last line.
 
-
-      	MPI_Startall(8,req);
+      	//MPI_Startall(8,req);
+      	//MPI_Waitall(8,req,MPI_STATUS_IGNORE);
+        MPI_Start( &r );
+        MPI_Wait( &r, MPI_STATUS_IGNORE );
 
         if (right != MPI_PROC_NULL) MPI_Wait(&req[0] , MPI_STATUS_IGNORE );
         if (left != MPI_PROC_NULL) MPI_Wait(&req[1] , MPI_STATUS_IGNORE );
