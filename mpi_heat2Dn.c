@@ -197,8 +197,7 @@ int main (int argc, char *argv[]){
         source = MASTER; msgtype = BEGIN;
         //MPI_Recv(&offsetX, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
         //MPI_Recv(&offsetY, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-        MPI_Recv(&columns, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-        MPI_Recv(&rows, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
+        MPI_Recv(&columns, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status); MPI_Recv(&rows, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
         MPI_Recv(&left, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
         MPI_Recv(&right, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
         MPI_Recv(&up, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
@@ -330,36 +329,20 @@ int main (int argc, char *argv[]){
 
 
 	    /// *** RECEIVING PROCEDURES *** ///
-        if (left !=  MPI_PROC_NULL){
-            MPI_Irecv(&(local[iz][0][0]), 1, column, left, 0, MPI_COMM_WORLD, &RRequestL); ///WARNING: 0??
-        }
-        if (right !=  MPI_PROC_NULL){
-            MPI_Irecv(&(local[iz][0][columns+1]), 1, column, right, 0, MPI_COMM_WORLD, &RRequestR); ///WARNING: 0?
-        }
-        if (down !=  MPI_PROC_NULL){
-            MPI_Irecv(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, MPI_COMM_WORLD, &RRequestD); ///WARNING: 0??
-        }
-        if (up !=  MPI_PROC_NULL){
-            MPI_Irecv(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, MPI_COMM_WORLD, &RRequestU); ///WARNING: 0??
-        }
+        MPI_Irecv(&(local[iz][0][0]), 1, column, left, 0, MPI_COMM_WORLD, &RRequestL); ///WARNING: 0??
+        MPI_Irecv(&(local[iz][0][columns+1]), 1, column, right, 0, MPI_COMM_WORLD, &RRequestR); ///WARNING: 0?
+        MPI_Irecv(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, MPI_COMM_WORLD, &RRequestD); ///WARNING: 0??
+        MPI_Irecv(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, MPI_COMM_WORLD, &RRequestU); ///WARNING: 0??
 
-	  /// *** SENDING PROCEDURES *** ///
-        if (right != MPI_PROC_NULL){
-            MPI_Isend(&(local[iz][0][columns]), 1, column, right, 0, MPI_COMM_WORLD, &SRequestR);  //sends column to RIGHT neighbor
-            //printf("%d: 8a steilw [ ", taskid);
-            //for(i=0; i<rows+2; i++)
-            //    printf("%3.1f ",local[iz][i][columns]);
-            //printf("] ston right(%d)\n",right);
-        }
-        if (left != MPI_PROC_NULL){
-            MPI_Isend(&(local[iz][0][1]), 1, column, left , 0, MPI_COMM_WORLD, &SRequestL);	//sends column to left neighbor
-        }
-        if (up != MPI_PROC_NULL){
-            MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, MPI_COMM_WORLD, &SRequestU);  //sends to UP neighbor
-        }
-        if (down != MPI_PROC_NULL){
-            MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, MPI_COMM_WORLD, &SRequestD); //sends to DOWN neighbor
-        }
+	    /// *** SENDING PROCEDURES *** ///
+        MPI_Isend(&(local[iz][0][columns]), 1, column, right, 0, MPI_COMM_WORLD, &SRequestR);  //sends column to RIGHT neighbor
+        //printf("%d: 8a steilw [ ", taskid);
+        //for(i=0; i<rows+2; i++)
+        //    printf("%3.1f ",local[iz][i][columns]);
+        //printf("] ston right(%d)\n",right);
+        MPI_Isend(&(local[iz][0][1]), 1, column, left , 0, MPI_COMM_WORLD, &SRequestL);	//sends column to left neighbor
+        MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, MPI_COMM_WORLD, &SRequestU);  //sends to UP neighbor
+        MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, MPI_COMM_WORLD, &SRequestD); //sends to DOWN neighbor
 
         /// *** CALCULATION OF INTERNAL DATA *** ///
         updateInternal(2, rows-1, columns,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
@@ -496,7 +479,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
     if (up != MPI_PROC_NULL) //this is because if the block haw not an up neighbor we shouldnt's caclulate halo
        ix = start;
     else
-	ix = start+1;
+	    ix = start+1;
 
     if (left != MPI_PROC_NULL) //this is because if the block haw not a left neighbor we shouldnt's caclulate halo
         iy = 1;
