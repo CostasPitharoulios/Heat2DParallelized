@@ -29,7 +29,7 @@
 
 #define NXPROB      12                 /* x dimension of problem grid */
 #define NYPROB      8                  /* y dimension of problem grid */
-#define STEPS       1 /*100*/            /* number of time steps */
+#define STEPS       3 /*100*/            /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
 #define RTAG        3                  /* message tag */
@@ -42,7 +42,7 @@ struct Parms {
   float cy;
 } parms = {0.1, 0.1};
 
-void inidat(), prtdat(), updateExternal(), update(), myprint(), DUMMYDUMDUM();
+void inidat(), prtdat(), updateExternal(), updateInternal(),  myprint(), DUMMYDUMDUM();
 int malloc2darr(),free2darr(),isPrime();
 
 int main (int argc, char *argv[]){
@@ -88,7 +88,8 @@ int main (int argc, char *argv[]){
         /* Initialize grid */
         printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
         printf("Initializing grid and writing initial.dat file...\n");
-        DUMMYDUMDUM(NXPROB, NYPROB, u); /* TODO TODO TODO */
+        //DUMMYDUMDUM(NXPROB, NYPROB, u); /* TODO TODO TODO */
+	inidat(NXPROB,NYPROB,u);
         prtdat(NXPROB, NYPROB, u, "initial.dat");
         for (ix=0; ix<NXPROB; ix++){
             for (j=0; j<NYPROB; j++)
@@ -312,16 +313,15 @@ int main (int argc, char *argv[]){
 
 
 	//Srart MPI_Wtime;
-	MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
     start = MPI_Wtime();
 	//printf("Task %d received work. Beginning time steps...\n",taskid);
 
     MPI_Request RRequestR, RRequestL, RRequestU, RRequestD;  //...A = ANATOLIKOS GEITONAS , ...D = DYTIKO, ...B = BOREIOS, ...N = NOTIOS
     MPI_Request SRequestR, SRequestL, SRequestU, SRequestD;
-	iz = 0;
-	for (it = 1; it <= STEPS; it++){
-	   
-	    // these help us send a column of the matrix
+    iz = 0;
+    for (it = 1; it <= STEPS; it++){
+	  	    // these help us send a column of the matrix
         MPI_Datatype column; 
         MPI_Type_vector(rows+2, 1,columns+2, MPI_FLOAT, &column); /* TODO send two less floats */
         MPI_Type_commit(&column);
@@ -360,7 +360,7 @@ int main (int argc, char *argv[]){
         }
 
         /// *** CALCULATION OF INTERNAL DATA *** ///
-        //update(2, rows-1, columns,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
+        updateInternal(2, rows-1, columns,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
         //line 0 contains neighbor's values and line 1 is the extrnal line of the block, so we don't want them. The same for the one before last and the last line.
 
         if (right != MPI_PROC_NULL) MPI_Wait(&RRequestR , MPI_STATUS_IGNORE );
@@ -377,7 +377,7 @@ int main (int argc, char *argv[]){
 
 
         /// *** CALCULATION OF EXTERNAL DATA *** ///
-        //updateExternal(1,rows, columns, &local[iz][0][0], &local[1-iz][0][0]);
+        updateExternal(1,rows, columns, &local[iz][0][0], &local[1-iz][0][0]);
 
         iz = 1-iz; 
 
@@ -386,19 +386,25 @@ int main (int argc, char *argv[]){
         if (up !=  MPI_PROC_NULL) MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
         if (down !=  MPI_PROC_NULL) MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
 
-//#if 0
+#if 0
         for ( i=0; i<numtasks; i++){
             if (taskid == i){
                 printf("=========== To kommati tou %d meta thn antallagh =========\n",i);
                 for (ix=0; ix<rows+2; ix++){
                     for (j=0; j<columns+2; j++)
-                        printf("%6.1f ", local[0][ix][j]);
+                        printf("%6.1f ", local[1-iz][ix][j]);
+                    printf("\n\n");
+                }
+	        printf("=========== To kommati tou %d meta thn UPDATE =========\n",i);
+                for (ix=0; ix<rows+2; ix++){
+                    for (j=0; j<columns+2; j++)
+                        printf("%6.1f ", local[iz][ix][j]);
                     printf("\n\n");
                 }
             }
             MPI_Barrier(MPI_COMM_WORLD);
         }
-//#endif
+#endif
 
 
     }
@@ -418,14 +424,14 @@ int main (int argc, char *argv[]){
 #endif
 
     /* Gather it all back */
-    MPI_Gatherv(&(local[0][0][0]), 1, recvsubarrtype, globalptr, sendcounts, displs, sendsubarrtype, MASTER, MPI_COMM_WORLD);
+    MPI_Gatherv(&(local[iz][0][0]), 1, recvsubarrtype, globalptr, sendcounts, displs, sendsubarrtype, MASTER, MPI_COMM_WORLD);
 
     free2darr(&local[0]);
     free2darr(&local[1]);
 
     MPI_Type_free(&sendsubarrtype); /*TODO kai tous upoloipous */
 
-#if 0
+///#if 0
     printf("Process:%d, Elapsed time: %e secs\n",taskid,finish-start);
     if (taskid==MASTER){
         printf("Processed grid:\n");
@@ -435,11 +441,13 @@ int main (int argc, char *argv[]){
             printf("\n\n");
         }
     }
-#endif
+///#endif
 
     MPI_Finalize();
     return 0;
 }
+
+
 
 
 /**************************************************************************
@@ -447,18 +455,21 @@ int main (int argc, char *argv[]){
 /// gets start = 2, end = xdim-1, ny = ydim = number of block columns without 
 /// the two which keep LEFT AND RIGHT neighbors' values
  ****************************************************************************/
-void update(int start, int end, int ny, float *u1, float *u2)
+void updateInternal(int start, int end, int ny, float *u1, float *u2)
 {
+
    int ix, iy;
-   for (ix = start; ix <= end; ix++) 
-      for (iy = 2; iy <= ny-3; iy++) 
-         *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
-                          parms.cx * (*(u1+(ix+1)*ny+iy) +
-                          *(u1+(ix-1)*ny+iy) - 
-                          2.0 * *(u1+ix*ny+iy)) +
-                          parms.cy * (*(u1+ix*ny+iy+1) +
-                         *(u1+ix*ny+iy-1) - 
-                          2.0 * *(u1+ix*ny+iy));
+   for (ix = start; ix <= end; ix++){ 
+      for (iy = 2; iy <= ny-1; iy++){
+         *(u2+ix*(ny+2)+iy) = *(u1+ix*(ny+2)+iy)  + 
+                          parms.cx * (*(u1+(ix+1)*(ny+2)+iy) +
+                          *(u1+(ix-1)*(ny+2)+iy) - 
+                          2.0 * *(u1+ix*(ny+2)+iy)) +
+                          parms.cy * (*(u1+ix*(ny+2)+iy+1) +
+                         *(u1+ix*(ny+2)+iy-1) - 
+                          2.0 * *(u1+ix*(ny+2)+iy));
+       }
+    }
 }
 
 
@@ -470,9 +481,10 @@ void update(int start, int end, int ny, float *u1, float *u2)
 void updateExternal(int start, int end, int ny, float *u1, float *u2)
 {
     int ix, iy;
+    ny+=2;
 	/// *** CALCULATING FIRST EXTERNAL ROW *** ///
     ix = start;
-    for (iy = 1; iy <= ny; iy++) 
+    for (iy = 1; iy <= ny-2; iy++) 
          *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
@@ -482,7 +494,7 @@ void updateExternal(int start, int end, int ny, float *u1, float *u2)
                           2.0 * *(u1+ix*ny+iy));
 	/// CALCULATING LAST EXTERNAL ROW *** ///
     ix =  end;
-    for (iy = 1; iy <= ny; iy++) 
+    for (iy = 1; iy <= ny-2; iy++) 
          *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
@@ -491,10 +503,21 @@ void updateExternal(int start, int end, int ny, float *u1, float *u2)
                          *(u1+ix*ny+iy-1) - 
                           2.0 * *(u1+ix*ny+iy));
 	/// *** CALCULATING FIRST AND LAST EXTERNAL COLUMN *** ///
-    for (ix = start+1; ix<end-1; ix++)
-        for (iy = 1; iy<= ny; iy+=(ny-1))
-	      *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
+
+    iy = 1;
+    for (ix = start; ix<end; ix++)
+        *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
+                          *(u1+(ix-1)*ny+iy) - 
+                          2.0 * *(u1+ix*ny+iy)) +
+                          parms.cy * (*(u1+ix*ny+iy+1) +
+                         *(u1+ix*ny+iy-1) - 
+                          2.0 * *(u1+ix*ny+iy)); 
+
+
+    iy = ny-2;
+    for (ix = start; ix<end; ix++)
+       *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
                           2.0 * *(u1+ix*ny+iy)) +
                           parms.cy * (*(u1+ix*ny+iy+1) +
