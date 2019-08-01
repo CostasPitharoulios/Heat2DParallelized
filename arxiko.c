@@ -26,8 +26,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define NXPROB      20                 /* x dimension of problem grid */
-#define NYPROB      20                 /* y dimension of problem grid */
+#define NXPROB      320                 /* x dimension of problem grid */
+#define NYPROB      256                 /* y dimension of problem grid */
 #define STEPS       100                /* number of time steps */
 #define MAXWORKER   8                  /* maximum number of worker tasks */
 #define MINWORKER   3                  /* minimum number of worker tasks */
@@ -126,8 +126,8 @@ MPI_Status status;
       }
 
       /* Write final output, call X graph and finalize MPI */
-      printf("Writing final.dat file and generating graph...\n");
-      prtdat(NXPROB, NYPROB, &u[0][0][0], "final.dat");
+      printf("Writing final0.dat file and generating graph...\n");
+      prtdat(NXPROB, NYPROB, &u[0][0][0], "final0.dat");
       printf("Click on MORE button to view initial/final states.\n");
       printf("Click on EXIT button to quit program.\n");
       

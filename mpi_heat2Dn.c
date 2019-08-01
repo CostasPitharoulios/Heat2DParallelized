@@ -27,9 +27,9 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define NXPROB      12                 /* x dimension of problem grid */
-#define NYPROB      8                  /* y dimension of problem grid */
-#define STEPS       3 /*100*/            /* number of time steps */
+#define NXPROB      320                 /* x dimension of problem grid */
+#define NYPROB      256                 /* y dimension of problem grid */
+#define STEPS       100                /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
 #define RTAG        3                  /* message tag */
@@ -89,13 +89,15 @@ int main (int argc, char *argv[]){
         printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
         printf("Initializing grid and writing initial.dat file...\n");
         //DUMMYDUMDUM(NXPROB, NYPROB, u); /* TODO TODO TODO */
-	inidat(NXPROB,NYPROB,u);
+	    inidat(NXPROB,NYPROB,u);
         prtdat(NXPROB, NYPROB, u, "initial.dat");
+#if 0
         for (ix=0; ix<NXPROB; ix++){
             for (j=0; j<NYPROB; j++)
                 printf("%6.1f ", u[0][ix][j]);
             printf("\n\n");
         }
+#endif
         //myprint(NXPROB, NYPROB, u[0]);
 
         /* Find the dimentions of the partitioned grid (e.x. 4 x 4) */
@@ -386,7 +388,7 @@ int main (int argc, char *argv[]){
         if (up !=  MPI_PROC_NULL) MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
         if (down !=  MPI_PROC_NULL) MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
 
-//#if 0
+#if 0
         for ( i=0; i<numtasks; i++){
             if (taskid == i){
                 printf("=========== To kommati tou %d meta thn antallagh =========\n",i);
@@ -404,7 +406,7 @@ int main (int argc, char *argv[]){
             }
             MPI_Barrier(MPI_COMM_WORLD);
         }
-//#endif
+#endif
 
 
     }
@@ -434,13 +436,20 @@ int main (int argc, char *argv[]){
 ///#if 0
     printf("Process:%d, Elapsed time: %e secs\n",taskid,finish-start);
     if (taskid==MASTER){
+        /*
         printf("Processed grid:\n");
         for (ix=0; ix<NXPROB; ix++){
             for (j=0; j<NYPROB; j++)
                 printf("%6.1f ", u[0][ix][j]);
             printf("\n\n");
         }
+        */
+
+    printf("Writing final.dat file and generating graph...\n");
+    prtdat(NXPROB, NYPROB, &u[0][0][0], "final.dat");
     }
+
+
 ///#endif
 
     MPI_Finalize();
@@ -573,7 +582,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
        endloop = end -2; //the down right corner is calculated from row calculation, so we don't need to calculate again
     else 
        endloop = end -3; // the down right corner is calculated from row calculation, so we don't need to calculate again
-    printf("end =%d, endloop=%d\n\n", end, endloop);
+    //printf("end =%d, endloop=%d\n\n", end, endloop);
     for (; ix<endloop; ix++)
        *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
