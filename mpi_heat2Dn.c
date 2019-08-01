@@ -46,8 +46,7 @@ void inidat(), prtdat(), updateExternal(), updateInternal(),  myprint(), DUMMYDU
 int malloc2darr(),free2darr(),isPrime();
 
 int main (int argc, char *argv[]){
-    float u[2][NXPROB][NYPROB],        /* array for grid TODO: mhpws na to exei mono o master? den xreiazetai na desmeutei se olous.. oi uloipoi exoyn to local. (auto mporei na ginei vazontas to static mesa se if, isws) */
-          /* Episis den xreiazomaste u[2] efoson exoume local[2] */
+    float u[NXPROB][NYPROB],        /* array for grid TODO: mhpws na to exei mono o master? den xreiazetai na desmeutei se olous.. oi uloipoi exoyn to local. (auto mporei na ginei vazontas to static mesa se if, isws) */
           **local[2];                  /* stores the block assigned to current task, surrounded by halo points */
     int	taskid,                     /* this task's unique id */
         numworkers,                 /* number of worker processes */
@@ -88,8 +87,7 @@ int main (int argc, char *argv[]){
         /* Initialize grid */
         printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
         printf("Initializing grid and writing initial.dat file...\n");
-        //DUMMYDUMDUM(NXPROB, NYPROB, u); /* TODO TODO TODO */
-	    inidat(NXPROB,NYPROB,u);
+        inidat(NXPROB,NYPROB,u);
         prtdat(NXPROB, NYPROB, u, "initial.dat");
 #if 0
         for (ix=0; ix<NXPROB; ix++){
@@ -98,7 +96,6 @@ int main (int argc, char *argv[]){
             printf("\n\n");
         }
 #endif
-        //myprint(NXPROB, NYPROB, u[0]);
 
         /* Find the dimentions of the partitioned grid (e.x. 4 x 4) */
         /* xdim,ydim are guarented to be found, since we have checked that
@@ -126,14 +123,7 @@ int main (int argc, char *argv[]){
         printf("Each block is %d x %d.\n",rows,columns);
 
         /* Distribute work to workers.*/ 
-        //offsetX = 0;
-        //offsetY = 0;
         for (i=1; i<numworkers; i++){
-         ///rows = (i <= extra) ? averow+1 : averow; 
-
-            /* Compute the coordinates of the up left corner of the block */
-            //offsetX = ((i-1)%xdim)*columns; /* TODO isws na htan pio oikonomiko na ekmetaleutoume oti eimaste se for loop opws eipe o kwstas */
-            //offsetY = ((i-1)/xdim)*rows;
 
             /* Find the neighbours of this block */
             if (i < ydim) // if this is the first row
@@ -151,52 +141,32 @@ int main (int argc, char *argv[]){
             else
                 left = i-1;
 
-            if (i%ydim == ydim-1)	//if this is the last column TODO einai swsto to ydim-1?
+            if (i%ydim == ydim-1)	//if this is the last column
                 right = MPI_PROC_NULL;
             else
                 right = i+1;
 
-
-
             /*  Now send startup information to each worker  */
-            /*TODO isws kai auta prepei na ginoun ISend */
             dest = i;
-            //MPI_Send(&offsetX, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
-            //MPI_Send(&offsetY, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&columns, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&rows, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&left, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&right, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&up, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
             MPI_Send(&down, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
-            //MPI_Send(&u[0][offset][0], rows*NYPROB, MPI_FLOAT, dest, BEGIN, MPI_COMM_WORLD);
-            //printf("Sent to task %d: rows= %d offset= %d ",dest,rows,offset);
-            //printf("left= %d right= %d\n",left,right);
-            //offsetX = offsetX + columns;  //PEIRAKSA KAI AUTA NA EINAI ETOIMA
-            //offsetY = offsetY + rows;	//PEIRAKSA KAI AUTA NA EINAI ETOIMA
         }
 
         /* Master does its part of the work */
-        //offsetX = 0;
-        //offsetY = 0;
         left = MPI_PROC_NULL;
         right = 1;
         up = MPI_PROC_NULL;
         down = ydim;
 
     }else{
-        /*************** workers code *****************/
-
-        /* Initialize everything - including the borders - to zero */
-        for (iz=0; iz<2; iz++)
-            for (ix=0; ix<NXPROB; ix++) 
-                for (iy=0; iy<NYPROB; iy++) 
-                    u[iz][ix][iy] = 0.0;
+        /* taskid != MASTER */
 
         /* Receive my offset, rows, neighbors and grid partition from master */
         source = MASTER; msgtype = BEGIN;
-        //MPI_Recv(&offsetX, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
-        //MPI_Recv(&offsetY, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
         MPI_Recv(&columns, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status); MPI_Recv(&rows, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
         MPI_Recv(&left, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
         MPI_Recv(&right, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
@@ -205,10 +175,11 @@ int main (int argc, char *argv[]){
     }
     printf("LOG: Process %d: left:%d, right:%d, up:%d, down:%d\n",taskid,left,right,up,down);
 
+    /* Allocate contigious memory for the 2d arrays local[0] and local[1] */
     malloc2darr(&local[0], rows+2, columns+2);
     malloc2darr(&local[1], rows+2, columns+2);
 
-    /* Initialize with 0's TODO mhpws den xreiazetai? */
+    /* Initialize with 0's */
     for (iz=0; iz<2; iz++)
         for (ix=0; ix<rows+2; ix++) 
             for (iy=0; iy<columns+2; iy++) 
@@ -223,7 +194,7 @@ int main (int argc, char *argv[]){
 
     MPI_Datatype type, sendsubarrtype;
     MPI_Type_create_subarray(2, sendsizes, sendsubsizes, sendstarts, MPI_ORDER_C, MPI_FLOAT, &type);
-    MPI_Type_create_resized(type, 0, columns*sizeof(float), &sendsubarrtype); /* h columns */
+    MPI_Type_create_resized(type, 0, columns*sizeof(float), &sendsubarrtype);
     MPI_Type_commit(&sendsubarrtype);
 
     /* Define the datatype of receive buffer elements */
@@ -235,11 +206,9 @@ int main (int argc, char *argv[]){
     MPI_Type_create_subarray(2, recvsizes, recvsubsizes, recvstarts, MPI_ORDER_C, MPI_FLOAT, &recvsubarrtype);
     MPI_Type_commit(&recvsubarrtype);
 
-    float *globalptr=NULL;
     int *sendcounts=NULL, *displs=NULL; 
 
     if (taskid == MASTER){
-        globalptr = &(u[0][0][0]);
         sendcounts = (int*)malloc(sizeof(int)*xdim*ydim);
         displs = (int*)malloc(sizeof(int)*xdim*ydim);
 
@@ -250,83 +219,32 @@ int main (int argc, char *argv[]){
         int disp = 0;
         for (i=0; i<xdim; i++){
             for (j=0; j<ydim; j++){
-                //printf("displs[%d]=%d\n",i*ydim+j,disp);
-                displs[i*ydim+j] = disp; /* h' mhpws xdim */
+                displs[i*ydim+j] = disp;
                 disp +=1;
             }
-            disp += (rows-1)*ydim; /* h' rows, ydim klp */
+            disp += (rows-1)*ydim;
         }
-
-        //printf("displs=[ ");
-        //for (i=0; i<ydim*xdim; i++){
-        //        printf("%d ",displs[i]);
-        //}
-        //printf("]\n");
     }
 
     /* Scatter array to all processes */
-    MPI_Scatterv(globalptr, sendcounts, displs, sendsubarrtype, &(local[0][0][0]), columns*rows, recvsubarrtype, MASTER, MPI_COMM_WORLD);
+    MPI_Scatterv(&(u[0][0]), sendcounts, displs, sendsubarrtype, &(local[0][0][0]), columns*rows, recvsubarrtype, MASTER, MPI_COMM_WORLD);
 
+    /// *** WORK STARTS HERE *** ///
 
-#if 0 
-    /* Mia antallagh gia testing */
-    MPI_Datatype column; 
-    MPI_Type_vector(rows+2, 1,columns+2, MPI_FLOAT, &column);
-    MPI_Type_commit(&column);
-
-    iz=0;
-    MPI_Request Srequest,Rrequest;
-    if (left == MASTER){
-        float *arr = malloc(sizeof(float)*(rows+2));
-        MPI_Irecv(&(local[iz][0][0]), 1, column, left,0, MPI_COMM_WORLD, &Rrequest);
-        printf("~~~~~~~%d: 8a steilw [ ", taskid);
-        for(i=0; i<rows+2; i++)
-            printf("%3.1f ",local[iz][i][1]);
-        printf("]\n");
-        MPI_Isend(&(local[iz][0][1]), 1, column, left ,0, MPI_COMM_WORLD, &Srequest);	//sends column to left neighbor*/
-        MPI_Wait(&Rrequest,&status);
-        printf("~~~~~~~%d: Elava [ ", taskid);
-        for(i=0; i<rows+2; i++)
-            printf("%3.1f ",local[iz][i][0]);
-        printf("]\n");
-        MPI_Wait(&Srequest,&status);
-    }
-    if (taskid == MASTER){
-        MPI_Irecv(&(local[iz][0][columns+1]), 1, column, right,0, MPI_COMM_WORLD, &Rrequest);
-        printf("~~~~~~~%d: 8a steilw [ ", taskid);
-        for(i=0; i<rows+2; i++)
-            printf("%3.1f ",local[iz][i][columns]);
-        printf("]\n");
-        MPI_Isend(&(local[iz][0][columns]), 1, column, right, 0, MPI_COMM_WORLD, &Srequest);  //sends column to RIGHT neighbor
-        MPI_Wait(&Rrequest,&status);
-        printf("~~~~~~~%d: Elava [ ", taskid);
-        for(i=0; i<rows+2; i++)
-            printf("%3.1f ",local[iz][i][columns+1]);
-        printf("]\n");
-
-        MPI_Wait(&Srequest,&status);
-    }
-#endif
-
-
-//#if 0 
-    /* workers code */
-
-
-	//Srart MPI_Wtime;
+    /* Start the timer */
     MPI_Barrier(MPI_COMM_WORLD);
     start = MPI_Wtime();
-	//printf("Task %d received work. Beginning time steps...\n",taskid);
 
-    MPI_Request RRequestR, RRequestL, RRequestU, RRequestD;  //...A = ANATOLIKOS GEITONAS , ...D = DYTIKO, ...B = BOREIOS, ...N = NOTIOS
+    MPI_Request RRequestR, RRequestL, RRequestU, RRequestD;
     MPI_Request SRequestR, SRequestL, SRequestU, SRequestD;
+
     iz = 0;
     for (it = 1; it <= STEPS; it++){
-	  	    // these help us send a column of the matrix
+
+	  	/* Datatypes for matrix column */
         MPI_Datatype column; 
         MPI_Type_vector(rows+2, 1,columns+2, MPI_FLOAT, &column); /* TODO send two less floats */
         MPI_Type_commit(&column);
-
 
 	    /// *** RECEIVING PROCEDURES *** ///
         MPI_Irecv(&(local[iz][0][0]), 1, column, left, 0, MPI_COMM_WORLD, &RRequestL); ///WARNING: 0??
@@ -336,10 +254,6 @@ int main (int argc, char *argv[]){
 
 	    /// *** SENDING PROCEDURES *** ///
         MPI_Isend(&(local[iz][0][columns]), 1, column, right, 0, MPI_COMM_WORLD, &SRequestR);  //sends column to RIGHT neighbor
-        //printf("%d: 8a steilw [ ", taskid);
-        //for(i=0; i<rows+2; i++)
-        //    printf("%3.1f ",local[iz][i][columns]);
-        //printf("] ston right(%d)\n",right);
         MPI_Isend(&(local[iz][0][1]), 1, column, left , 0, MPI_COMM_WORLD, &SRequestL);	//sends column to left neighbor
         MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, MPI_COMM_WORLD, &SRequestU);  //sends to UP neighbor
         MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, MPI_COMM_WORLD, &SRequestD); //sends to DOWN neighbor
@@ -352,14 +266,6 @@ int main (int argc, char *argv[]){
         if (left != MPI_PROC_NULL) MPI_Wait(&RRequestL , MPI_STATUS_IGNORE );
         if (up !=  MPI_PROC_NULL) MPI_Wait(&RRequestU , MPI_STATUS_IGNORE );
         if (down !=  MPI_PROC_NULL) MPI_Wait(&RRequestD , MPI_STATUS_IGNORE );
-
-        //if (left != MPI_PROC_NULL){
-        //    printf("~~~~~~~%d: Elava [ ", taskid);
-        //    for(i=0; i<rows+2; i++)
-        //        printf("%3.1f ",local[iz][i][0]);
-        //    printf("] apo ton left(%d)\n",left);
-        //}
-
 
         /// *** CALCULATION OF EXTERNAL DATA *** ///
         updateExternal(1,rows, columns,right,left,up,down, &local[iz][0][0], &local[1-iz][0][0]);
@@ -393,47 +299,37 @@ int main (int argc, char *argv[]){
 
 
     }
+
+    /// *** WORK COMPLETE *** ///
+
+    /* Stop the timer */
     finish = MPI_Wtime();
 
-//#endif
-
-#if 0
-    /////////////////////
-    /* Vazw ka8e diergasia na alla3ei ton local, gia testing */
-    for (i=1; i<rows+1; i++){
-        for (j=1; j<columns+1; j++){
-            local[0][i][j] = taskid;
-        }
-    }
-    /////////////////////
-#endif
 
     /* Gather it all back */
-    MPI_Gatherv(&(local[iz][0][0]), 1, recvsubarrtype, globalptr, sendcounts, displs, sendsubarrtype, MASTER, MPI_COMM_WORLD);
+    MPI_Gatherv(&(local[iz][0][0]), 1, recvsubarrtype, &(u[0][0]), sendcounts, displs, sendsubarrtype, MASTER, MPI_COMM_WORLD);
 
     free2darr(&local[0]);
     free2darr(&local[1]);
 
-    MPI_Type_free(&sendsubarrtype); /*TODO kai tous upoloipous */
+    MPI_Type_free(&type);
+    MPI_Type_free(&sendsubarrtype);
+    MPI_Type_free(&recvsubarrtype);
 
-///#if 0
     printf("Process:%d, Elapsed time: %e secs\n",taskid,finish-start);
     if (taskid==MASTER){
         /*
         printf("Processed grid:\n");
         for (ix=0; ix<NXPROB; ix++){
             for (j=0; j<NYPROB; j++)
-                printf("%6.1f ", u[0][ix][j]);
+                printf("%6.1f ", u[ix][j]);
             printf("\n\n");
         }
         */
 
     printf("Writing final.dat file and generating graph...\n");
-    prtdat(NXPROB, NYPROB, &u[0][0][0], "final.dat");
+    prtdat(NXPROB, NYPROB, &u[0][0], "final.dat");
     }
-
-
-///#endif
 
     MPI_Finalize();
     return 0;
@@ -620,22 +516,6 @@ int isPrime(int n){
             return 0;
     return 1;
 }
-
-/* TODO delete this func before we paradwsoume */
-void myprint(int nx, int ny, float *u1) {
-    int ix, iy;
-    for (iy = ny-1; iy >= 0; iy--) {
-      for (ix = 0; ix <= nx-1; ix++) {
-        printf("%6.1f", *(u1+ix*ny+iy));
-        if (ix != nx-1) 
-          printf(" ");
-        else
-          printf("\n");
-        }
-    }
-}
-
-
 
 int malloc2darr(float ***array, int n, int m) {
 
