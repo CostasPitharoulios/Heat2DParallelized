@@ -47,6 +47,21 @@ void inidat(), prtdat(), updateExternal(), updateInternal(),  myprint(), DUMMYDU
 int malloc2darr(),free2darr(),isPrime();
 
 int main (int argc, char *argv[]){
+
+   /// *** GET NUMBER OF THREADS FROM COMMAND LINE ***///
+    if (argc != 2){
+       printf("ERROR: You gave wrong parameters\n\n");
+	return -1;
+    }
+    int thread_count = strtol(argv[4], NULL, 10);
+    if (thread_count <= 4){
+	printf("ERROR: You gave wrong number of threads!\n\n");
+	return -1;
+    }
+    printf("thread count = %d\n\n\n\n", thread_count);
+
+
+
     float u[NXPROB][NYPROB],        /* array for grid */
           **local[2];               /* stores the block assigned to current task, surrounded by halo points */
     int	taskid,                     /* this task's unique id */
@@ -69,10 +84,10 @@ int main (int argc, char *argv[]){
 
 
     if (taskid == MASTER) {
-#pragma omp parallel num_threads(2)
+/*#pragma omp parallel num_threads(2)
         {
             printf("Hellooo\n");
-        }
+        }*/
         /************************* Master code *******************************/
 
         if ((isPrime(numworkers))){
@@ -281,6 +296,12 @@ int main (int argc, char *argv[]){
     MPI_Startall(8,req);
     MPI_Waitall(8,req,MPI_STATUS_IGNORE);
 
+
+
+
+    #pragma omp parallel num_threads(thread_count)
+
+
     for (it = 1; it <= STEPS; it++){
 
         /// *** RECEIVING PROCEDURES *** ///
@@ -296,7 +317,7 @@ int main (int argc, char *argv[]){
         MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &SRequestD); //sends to DOWN neighbor
 
         /// *** CALCULATION OF INTERNAL DATA *** ///
-        updateInternal(2, rows-1, columns,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
+        updateInternal(2, rows-1, columns,&local[iz][0][0], &local[1-iz][0][0],thread_count); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
         //line 0 contains neighbor's values and line 1 is the extrnal line of the block, so we don't want them. The same for the one before last and the last line.
 
         if (right != MPI_PROC_NULL) MPI_Wait(&RRequestR , MPI_STATUS_IGNORE );
@@ -386,10 +407,11 @@ int main (int argc, char *argv[]){
 /// gets start = 2, end = xdim-1, ny = ydim = number of block columns without 
 /// the two which keep LEFT AND RIGHT neighbors' values
  ****************************************************************************/
-void updateInternal(int start, int end, int ny, float *u1, float *u2)
+void updateInternal(int start, int end, int ny, float *u1, float *u2,int thread_count )
 {
 
    int ix, iy;
+   #pragma omp parallel for num_threads(thread_count) schedule(static,1)
    for (ix = start; ix <= end; ix++){ 
       for (iy = 2; iy <= ny-1; iy++){
          *(u2+ix*(ny+2)+iy) = *(u1+ix*(ny+2)+iy)  + 
