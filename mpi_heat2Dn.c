@@ -254,20 +254,20 @@ int main (int argc, char *argv[]){
 
     /* Datatypes for matrix column */
     MPI_Datatype column; 
-    MPI_Type_vector(rows+2, 1,columns+2, MPI_FLOAT, &column); /* TODO send two less floats */
+    MPI_Type_vector(rows, 1,columns+2, MPI_FLOAT, &column);
     MPI_Type_commit(&column);
 
     /* Requests for persistent communication */
     MPI_Request req[8];
     MPI_Status  stat[8];
 
-    MPI_Recv_init(&(local[iz][0][0]), 1, column, left, 0, comm_cart, &(req[0]));
-    MPI_Recv_init(&(local[iz][0][columns+1]), 1, column, right, 0, comm_cart, &(req[1]));
+    MPI_Recv_init(&(local[iz][1][0]), 1, column, left, 0, comm_cart, &(req[0]));
+    MPI_Recv_init(&(local[iz][1][columns+1]), 1, column, right, 0, comm_cart, &(req[1]));
     MPI_Recv_init(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &(req[2])); 
     MPI_Recv_init(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &(req[3])); 
 
-    MPI_Send_init(&(local[iz][0][columns]), 1, column, right, 0, comm_cart, &req[4]);
-    MPI_Send_init(&(local[iz][0][1]), 1, column, left , 0, comm_cart, &req[5]);
+    MPI_Send_init(&(local[iz][1][columns]), 1, column, right, 0, comm_cart, &req[4]);
+    MPI_Send_init(&(local[iz][1][1]), 1, column, left , 0, comm_cart, &req[5]);
     MPI_Send_init(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &req[6]);
     MPI_Send_init(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &req[7]);
     
@@ -277,14 +277,14 @@ int main (int argc, char *argv[]){
     for (it = 1; it <= STEPS; it++){
 
         /// *** RECEIVING PROCEDURES *** ///
-        MPI_Irecv(&(local[iz][0][0]), 1, column, left, 0, comm_cart, &RRequestL); ///WARNING: 0??
-        MPI_Irecv(&(local[iz][0][columns+1]), 1, column, right, 0, comm_cart, &RRequestR); ///WARNING: 0?
+        MPI_Irecv(&(local[iz][1][0]), 1, column, left, 0, comm_cart, &RRequestL); ///WARNING: 0??
+        MPI_Irecv(&(local[iz][1][columns+1]), 1, column, right, 0, comm_cart, &RRequestR); ///WARNING: 0?
         MPI_Irecv(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &RRequestD); ///WARNING: 0??
         MPI_Irecv(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &RRequestU); ///WARNING: 0??
 
         /// *** SENDING PROCEDURES *** ///
-        MPI_Isend(&(local[iz][0][columns]), 1, column, right, 0, comm_cart, &SRequestR);  //sends column to RIGHT neighbor
-        MPI_Isend(&(local[iz][0][1]), 1, column, left , 0, comm_cart, &SRequestL);	//sends column to left neighbor
+        MPI_Isend(&(local[iz][1][columns]), 1, column, right, 0, comm_cart, &SRequestR);  //sends column to RIGHT neighbor
+        MPI_Isend(&(local[iz][1][1]), 1, column, left , 0, comm_cart, &SRequestL);	//sends column to left neighbor
         MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &SRequestU);  //sends to UP neighbor
         MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &SRequestD); //sends to DOWN neighbor
 
