@@ -46,26 +46,24 @@ void inidat(), prtdat(), updateExternal(), updateInternal(),  myprint(), DUMMYDU
 int malloc2darr(),free2darr(),isPrime();
 
 int main (int argc, char *argv[]){
-    float u[NXPROB][NYPROB],        /* array for grid TODO: mhpws na to exei mono o master? den xreiazetai na desmeutei se olous.. oi uloipoi exoyn to local. (auto mporei na ginei vazontas to static mesa se if, isws) */
-          **local[2];                  /* stores the block assigned to current task, surrounded by halo points */
+    float u[NXPROB][NYPROB],        /* array for grid */
+          **local[2];               /* stores the block assigned to current task, surrounded by halo points */
     int	taskid,                     /* this task's unique id */
         numworkers,                 /* number of worker processes */
-        numtasks,                   /* number of tasks */
-        /*averow,offset,*/offsetX, offsetY,/*extra,*/   /* for sending rows of data */
         dest, source,               /* to - from for message send-receive */
-        left,right,up,down,        /* neighbor tasks */
+        left,right,up,down,         /* neighbor tasks */
         msgtype,                    /* for message types */
         xdim, ydim,                 /* dimensions of grid partition (e.x. 4x4) */
-        rows, columns,             /* number of rows/columns of each block (e.x. 20x12) */
-        i,j,x,y,ix,iy,iz,it;              /* loop variables */
+        rows, columns,              /* number of rows/columns of each block (e.x. 20x12) */
+        i,j,x,y,ix,iy,iz,it;        /* loop variables */
     double start,finish;
     MPI_Status status;
 
     /* First, find out my taskid and how many tasks are running */
     MPI_Init(&argc,&argv);
-    MPI_Comm_size(MPI_COMM_WORLD,&numtasks);
+    MPI_Comm_size(MPI_COMM_WORLD,&numworkers);
     MPI_Comm_rank(MPI_COMM_WORLD,&taskid);
-    numworkers = numtasks;
+    numworkers;
 
     if (taskid == MASTER) {
         /************************* Master code *******************************/
@@ -136,7 +134,7 @@ int main (int argc, char *argv[]){
             else
                down = i + ydim;
 
-            if (i%ydim == 0)	// if this is the first column
+            if (i%ydim == 0) // if this is the first column
                 left = MPI_PROC_NULL;
             else
                 left = i-1;
@@ -160,9 +158,13 @@ int main (int argc, char *argv[]){
 
         /* Master does its part of the work */
         left = MPI_PROC_NULL;
-        right = 1;
         up = MPI_PROC_NULL;
-        down = ydim;
+        if (numworkers == 1)
+            right = down = MPI_PROC_NULL;
+        else{
+            right = 1;
+            down = ydim;
+        }
 
     }else{
         /* taskid != MASTER */
@@ -264,10 +266,10 @@ int main (int argc, char *argv[]){
     MPI_Recv_init(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &(req[2])); 
     MPI_Recv_init(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &(req[3])); 
 
-    MPI_Send_init(&(local[iz][0][columns]), 1, column, right, 0, comm_cart, &req[4]);   //sends column to RIGHT neighbor
-    MPI_Send_init(&(local[iz][0][1]), 1, column, left , 0, comm_cart, &req[5]);      //sends column to left neighbor
-    MPI_Send_init(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &req[6]);  //sends to UP neighbor 
-    MPI_Send_init(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &req[7]); //sends to DOWN neighbor
+    MPI_Send_init(&(local[iz][0][columns]), 1, column, right, 0, comm_cart, &req[4]);
+    MPI_Send_init(&(local[iz][0][1]), 1, column, left , 0, comm_cart, &req[5]);
+    MPI_Send_init(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &req[6]);
+    MPI_Send_init(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &req[7]);
     
     MPI_Startall(8,req);
     MPI_Waitall(8,req,MPI_STATUS_IGNORE);
@@ -306,7 +308,7 @@ int main (int argc, char *argv[]){
         if (down !=  MPI_PROC_NULL) MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
 
 #if 0
-        for ( i=0; i<numtasks; i++){
+        for ( i=0; i<numworkers; i++){
             if (taskid == i){
                 printf("=========== To kommati tou %d meta thn antallagh =========\n",i);
                 for (ix=0; ix<rows+2; ix++){
@@ -541,6 +543,8 @@ fclose(fp);
 /* Checkis if a given integer is a prime number */
 int isPrime(int n){
     int i;
+    if (n==1)
+        return 0;
     if (n==2)
         return 1;
     if (n%2==0)
