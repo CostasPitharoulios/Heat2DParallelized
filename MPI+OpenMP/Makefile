@@ -1,5 +1,5 @@
-mpi_heat2Dn: mpi_heat2Dn.c
-	mpicc mpi_heat2Dn.c -o mpi_heat2Dn -lm -g
+mpi_omp_heat2Dn: mpi_omp_heat2Dn.c
+	mpicc mpi_omp_heat2Dn.c -fopenmp -o mpi_omp_heat2Dn -lm -g
 
 clean: 
-	rm mpi_heat2Dn
+	rm mpi_omp_heat2Dn

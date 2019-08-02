@@ -23,12 +23,13 @@
  ****************************************************************************/
 
 #include "mpi.h"
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 
-#define NXPROB      640                 /* x dimension of problem grid */
-#define NYPROB      1024                 /* y dimension of problem grid */
+#define NXPROB      320                 /* x dimension of problem grid */
+#define NYPROB      256                 /* y dimension of problem grid */
 #define STEPS       100                /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
@@ -55,17 +56,23 @@ int main (int argc, char *argv[]){
         msgtype,                    /* for message types */
         xdim, ydim,                 /* dimensions of grid partition (e.x. 4x4) */
         rows, columns,              /* number of rows/columns of each block (e.x. 20x12) */
-        i,j,x,y,ix,iy,iz,it;        /* loop variables */
+        i,j,x,y,ix,iy,iz,it,        /* loop variables */
+        provided;
     double start,finish;
     MPI_Status status;
 
     /* First, find out my taskid and how many tasks are running */
-    MPI_Init(&argc,&argv);
+    MPI_Init_thread(&argc,&argv, MPI_THREAD_MULTIPLE, &provided);
     MPI_Comm_size(MPI_COMM_WORLD,&numworkers);
     MPI_Comm_rank(MPI_COMM_WORLD,&taskid);
     numworkers;
 
+
     if (taskid == MASTER) {
+#pragma omp parallel num_threads(2)
+        {
+            printf("Hellooo\n");
+        }
         /************************* Master code *******************************/
 
         if ((isPrime(numworkers))){
