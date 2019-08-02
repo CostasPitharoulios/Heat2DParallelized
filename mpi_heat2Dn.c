@@ -10,25 +10,25 @@
  *   alternate between old data and new data.
  *
  *   In this parallelized version, the grid is decomposed by the master
- *   process and then distributed by rows to the worker processes.  At each 
+ *   process and then distributed by blocks to the worker processes. At each 
  *   time step, worker processes must exchange border data with neighbors, 
  *   because a grid point's current temperature depends upon it's previous
- *   time step value plus the values of the neighboring grid points.  Upon
+ *   time step value plus the values of the neighboring grid points. Upon
  *   completion of all time steps, the worker processes return their results
  *   to the master process.
  *
  *   Two data files are produced: an initial data set and a final data set.
- * AUTHOR: Blaise Barney - adapted from D. Turner's serial C version. Converted
- *   to MPI: George L. Gusciora (1/95)
- * LAST REVISED: 04/02/05
+ * AUTHORS: Costas Pitharoulios, Simon Iyamu
+ *   
  ****************************************************************************/
+
 #include "mpi.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 
-#define NXPROB      320                 /* x dimension of problem grid */
-#define NYPROB      256                 /* y dimension of problem grid */
+#define NXPROB      640                 /* x dimension of problem grid */
+#define NYPROB      1024                 /* y dimension of problem grid */
 #define STEPS       100                /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
