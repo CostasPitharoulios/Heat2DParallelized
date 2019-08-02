@@ -28,9 +28,9 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define NXPROB      320                 /* x dimension of problem grid */
-#define NYPROB      256                 /* y dimension of problem grid */
-#define STEPS       100                /* number of time steps */
+#define NXPROB      8                 /* x dimension of problem grid */
+#define NYPROB      12                 /* y dimension of problem grid */
+#define STEPS       1                /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
 #define RTAG        3                  /* message tag */
@@ -86,10 +86,10 @@ int main (int argc, char *argv[]){
 
 
     if (taskid == MASTER) {
-#pragma omp parallel //num_threads(2)
+/*#pragma omp parallel //num_threads(2)
         {
             printf("Hellooo\n");
-        }
+        }*/
         /************************* Master code *******************************/
 
         if ((isPrime(numworkers))){
@@ -300,14 +300,14 @@ int main (int argc, char *argv[]){
 
 
 
-//    #pragma omp parallel num_threads(thread_count)
+//    # pragma omp parallel num_threads(thread_count)
     /* Start thread_count threads */
-    #pragma omp parallel num_threads(thread_count)
-    {
+    # pragma omp parallel num_threads(thread_count)
+    {////!!!!! TI FASH AUTO TO AGKISTRO GAMWWWW?!?!?!?!?!?!?!?!?!?! GIATI AN BGEI DEN KANEI COMPILE?????????????
         int thread_rank = omp_get_thread_num();
 
         for (it = 1; it <= STEPS; it++){
-
+printf("Hello from step: %d thread: %d\n\n", it, thread_rank);
             if (thread_rank==0){
                 /// *** RECEIVING PROCEDURES *** ///
                 MPI_Irecv(&(local[iz][1][0]), 1, column, left, 0, comm_cart, &RRequestL); ///WARNING: 0??
@@ -320,13 +320,13 @@ int main (int argc, char *argv[]){
                 MPI_Isend(&(local[iz][1][1]), 1, column, left , 0, comm_cart, &SRequestL);	//sends column to left neighbor
                 MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &SRequestU);  //sends to UP neighbor
                 MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &SRequestD); //sends to DOWN neighbor
-            }
-
+            
+}
             /// *** CALCULATION OF INTERNAL DATA *** ///
             updateInternal(2, rows-1, columns,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
             //line 0 contains neighbor's values and line 1 is the extrnal line of the block, so we don't want them. The same for the one before last and the last line.
             if (thread_rank==0){
-
+//printf("Hello INSIDE from step: %d thread: %d\n\n", it, thread_rank);
                 if (right != MPI_PROC_NULL) MPI_Wait(&RRequestR , MPI_STATUS_IGNORE );
                 if (left != MPI_PROC_NULL) MPI_Wait(&RRequestL , MPI_STATUS_IGNORE );
                 if (up !=  MPI_PROC_NULL) MPI_Wait(&RRequestU , MPI_STATUS_IGNORE );
@@ -335,6 +335,7 @@ int main (int argc, char *argv[]){
             }
 
             #pragma omp barrier
+//printf("Hello AGAIN!! from step: %d thread: %d\n\n", it, thread_rank);
             /// *** CALCULATION OF EXTERNAL DATA *** ///
             updateExternal(1,rows, columns,right,left,up,down, &local[iz][0][0], &local[1-iz][0][0]);
 
@@ -346,7 +347,7 @@ int main (int argc, char *argv[]){
                 if (up !=  MPI_PROC_NULL) MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
                 if (down !=  MPI_PROC_NULL) MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
 
-#if 0
+//#if 0
                 for ( i=0; i<numworkers; i++){
                     if (taskid == i){
                         printf("=========== To kommati tou %d meta thn antallagh =========\n",i);
@@ -364,7 +365,7 @@ int main (int argc, char *argv[]){
                     }
                     MPI_Barrier(MPI_COMM_WORLD);
                 }
-#endif
+//#endif
             }
         }
 
@@ -423,7 +424,7 @@ void updateInternal(int start, int end, int ny, float *u1, float *u2)
 {
 
    int ix, iy;
-   #pragma omp for schedule(static,1)
+   #pragma omp for schedule(static,6)
    for (ix = start; ix <= end; ix++){ 
       for (iy = 2; iy <= ny-1; iy++){
          *(u2+ix*(ny+2)+iy) = *(u1+ix*(ny+2)+iy)  + 
@@ -445,9 +446,16 @@ void updateInternal(int start, int end, int ny, float *u1, float *u2)
  ****************************************************************************/
 void updateExternal(int start, int end, int ny,int right, int left,int up,int down, float *u1, float *u2)
 {
+
     int ix, iy;
+
+    int thread_rank = omp_get_thread_num();
+printf("INSIDE updateExternal - thread_rank=%d\n\n", thread_rank);
+    int endny;
+//if (thread_rank == 0){
     ny+=2;
     end+=2;
+
 	/// *** CALCULATING FIRST EXTERNAL ROW *** ///
     if (up != MPI_PROC_NULL) //this is because if the block haw not an up neighbor we shouldnt's caclulate halo
        ix = start;
@@ -459,13 +467,12 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
     else
         iy = 2;
 
-    int endny;
     if (right !=  MPI_PROC_NULL)
         endny = ny-3;
     else
         endny = ny-3;
-
-    #pragma omp for schedule(static,1)
+//}
+    #pragma omp parallel for schedule(static,1)
     for (iy=iy; iy <= endny; iy++) 
          *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
@@ -474,7 +481,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
                           parms.cy * (*(u1+ix*ny+iy+1) +
                          *(u1+ix*ny+iy-1) - 
                           2.0 * *(u1+ix*ny+iy));
-
+//#if 0
 	/// CALCULATING LAST EXTERNAL ROW *** ///
     if (down != MPI_PROC_NULL)
        ix =  end-2;
@@ -488,7 +495,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
         endny = ny-2;
     else
         endny = ny-3;
-    #pragma omp for schedule(static,1)
+    #pragma parallel omp for schedule(static,1)
     for (iy=iy; iy <= endny; iy++) 
          *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
@@ -516,7 +523,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
     else
        endloop = end -3; 
 
-    #pragma omp for schedule(static,1)
+    #pragma parallel omp for schedule(static,1)
     for (ix=ix; ix<endloop; ix++)
         *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
@@ -542,7 +549,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
     else 
        endloop = end -3; // the down right corner is calculated from row calculation, so we don't need to calculate again
     //printf("end =%d, endloop=%d\n\n", end, endloop);
-    #pragma omp for schedule(static,1)
+    #pragma parallel omp for schedule(static,1)
     for (ix=ix; ix<endloop; ix++)
        *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
@@ -550,7 +557,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
                           parms.cy * (*(u1+ix*ny+iy+1) +
                          *(u1+ix*ny+iy-1) - 
                           2.0 * *(u1+ix*ny+iy)); 
-
+//#endif
 }
 
 
