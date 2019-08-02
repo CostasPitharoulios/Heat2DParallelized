@@ -245,37 +245,32 @@ int main (int argc, char *argv[]){
     MPI_Barrier(MPI_COMM_WORLD);
     start = MPI_Wtime();
 
+    iz = 0;
+
     MPI_Request RRequestR, RRequestL, RRequestU, RRequestD;
     MPI_Request SRequestR, SRequestL, SRequestU, SRequestD;
 
     /* Datatypes for matrix column */
-    printf("Enaa\n");
     MPI_Datatype column; 
     MPI_Type_vector(rows+2, 1,columns+2, MPI_FLOAT, &column); /* TODO send two less floats */
     MPI_Type_commit(&column);
-    printf("Du\n");
 
-    /*
+    /* Requests for persistent communication */
     MPI_Request req[8];
     MPI_Status  stat[8];
 
-    printf("Tres\n");
     MPI_Recv_init(&(local[iz][0][0]), 1, column, left, 0, comm_cart, &(req[0]));
     MPI_Recv_init(&(local[iz][0][columns+1]), 1, column, right, 0, comm_cart, &(req[1]));
     MPI_Recv_init(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &(req[2])); 
     MPI_Recv_init(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &(req[3])); 
 
-    printf("Quatro\n");
     MPI_Send_init(&(local[iz][0][columns]), 1, column, right, 0, comm_cart, &req[4]);   //sends column to RIGHT neighbor
     MPI_Send_init(&(local[iz][0][1]), 1, column, left , 0, comm_cart, &req[5]);      //sends column to left neighbor
-    MPI_Send_init(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &req[6]);  //sends to UP neighbor
+    MPI_Send_init(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &req[6]);  //sends to UP neighbor 
     MPI_Send_init(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &req[7]); //sends to DOWN neighbor
-    */
-
-    MPI_Request r;
-    MPI_Recv_init(&(local[iz][0][0]), 1, column, left, 0, comm_cart, &r);
-
-    iz = 0;
+    
+    MPI_Startall(8,req);
+    MPI_Waitall(8,req,MPI_STATUS_IGNORE);
 
     for (it = 1; it <= STEPS; it++){
 
@@ -285,7 +280,7 @@ int main (int argc, char *argv[]){
         MPI_Irecv(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &RRequestD); ///WARNING: 0??
         MPI_Irecv(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &RRequestU); ///WARNING: 0??
 
-	    /// *** SENDING PROCEDURES *** ///
+        /// *** SENDING PROCEDURES *** ///
         MPI_Isend(&(local[iz][0][columns]), 1, column, right, 0, comm_cart, &SRequestR);  //sends column to RIGHT neighbor
         MPI_Isend(&(local[iz][0][1]), 1, column, left , 0, comm_cart, &SRequestL);	//sends column to left neighbor
         MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &SRequestU);  //sends to UP neighbor
@@ -295,28 +290,20 @@ int main (int argc, char *argv[]){
         updateInternal(2, rows-1, columns,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
         //line 0 contains neighbor's values and line 1 is the extrnal line of the block, so we don't want them. The same for the one before last and the last line.
 
-      	//MPI_Startall(8,req);
-      	//MPI_Waitall(8,req,MPI_STATUS_IGNORE);
-        MPI_Start( &r );
-        MPI_Wait( &r, MPI_STATUS_IGNORE );
-
-        if (right != MPI_PROC_NULL) MPI_Wait(&req[0] , MPI_STATUS_IGNORE );
-        if (left != MPI_PROC_NULL) MPI_Wait(&req[1] , MPI_STATUS_IGNORE );
-        if (up !=  MPI_PROC_NULL) MPI_Wait(&req[2] , MPI_STATUS_IGNORE );
-        if (down !=  MPI_PROC_NULL) MPI_Wait(&req[3] , MPI_STATUS_IGNORE );
-
-
-//	MPI_Waitall(8,req,stat);
+        if (right != MPI_PROC_NULL) MPI_Wait(&RRequestR , MPI_STATUS_IGNORE );
+        if (left != MPI_PROC_NULL) MPI_Wait(&RRequestL , MPI_STATUS_IGNORE );
+        if (up !=  MPI_PROC_NULL) MPI_Wait(&RRequestU , MPI_STATUS_IGNORE );
+        if (down !=  MPI_PROC_NULL) MPI_Wait(&RRequestD , MPI_STATUS_IGNORE );
 
         /// *** CALCULATION OF EXTERNAL DATA *** ///
         updateExternal(1,rows, columns,right,left,up,down, &local[iz][0][0], &local[1-iz][0][0]);
 
         iz = 1-iz; 
 
-        if (right != MPI_PROC_NULL) MPI_Wait(&req[4] , MPI_STATUS_IGNORE );
-        if (left != MPI_PROC_NULL) MPI_Wait(&req[5] , MPI_STATUS_IGNORE );
-        if (up !=  MPI_PROC_NULL) MPI_Wait(&req[6] , MPI_STATUS_IGNORE );
-        if (down !=  MPI_PROC_NULL) MPI_Wait(&req[7] , MPI_STATUS_IGNORE );
+        if (right != MPI_PROC_NULL) MPI_Wait(&SRequestR , MPI_STATUS_IGNORE );
+        if (left != MPI_PROC_NULL) MPI_Wait(&SRequestL , MPI_STATUS_IGNORE );
+        if (up !=  MPI_PROC_NULL) MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
+        if (down !=  MPI_PROC_NULL) MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
 
 #if 0
         for ( i=0; i<numtasks; i++){
@@ -346,16 +333,8 @@ int main (int argc, char *argv[]){
     /* Stop the timer */
     finish = MPI_Wtime();
 
-
     /* Gather it all back */
     MPI_Gatherv(&(local[iz][0][0]), 1, recvsubarrtype, &(u[0][0]), sendcounts, displs, sendsubarrtype, MASTER, MPI_COMM_WORLD);
-
-    free2darr(&local[0]);
-    free2darr(&local[1]);
-
-    MPI_Type_free(&type);
-    MPI_Type_free(&sendsubarrtype);
-    MPI_Type_free(&recvsubarrtype);
 
     printf("Process:%d, Elapsed time: %e secs\n",taskid,finish-start);
     if (taskid==MASTER){
@@ -368,16 +347,30 @@ int main (int argc, char *argv[]){
         }
         */
 
-    printf("Writing final.dat file and generating graph...\n");
-    prtdat(NXPROB, NYPROB, &u[0][0], "final.dat");
+        printf("Writing final.dat file and generating graph...\n");
+        prtdat(NXPROB, NYPROB, &u[0][0], "final.dat");
     }
 
+    /* Free malloc'd memory */
+    free2darr(&local[0]);
+    free2darr(&local[1]);
+
+    if (taskid==MASTER){
+        free(displs);
+        free(sendcounts);
+    }
+
+    MPI_Type_free(&type);
+    MPI_Type_free(&sendsubarrtype);
+    MPI_Type_free(&recvsubarrtype);
+    MPI_Type_free(&column);
+
+    for(i=0; i<8 ; i++)
+        MPI_Request_free(&(req[i]));
+    
     MPI_Finalize();
     return 0;
 }
-
-
-
 
 /**************************************************************************
  *  subroutine update
