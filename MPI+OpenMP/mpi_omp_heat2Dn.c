@@ -85,10 +85,10 @@ printf("argc=%d %s %s %s %s end\n\n" , argc,argv[1],argv[1],argv[1],argv[1]);
 
 
     if (taskid == MASTER) {
-/*#pragma omp parallel num_threads(2)
+#pragma omp parallel //num_threads(2)
         {
             printf("Hellooo\n");
-        }*/
+        }
         /************************* Master code *******************************/
 
         if ((isPrime(numworkers))){
@@ -300,7 +300,7 @@ printf("argc=%d %s %s %s %s end\n\n" , argc,argv[1],argv[1],argv[1],argv[1]);
 
 
 
-    #pragma omp parallel num_threads(thread_count)
+//    #pragma omp parallel num_threads(thread_count)
 
 
     for (it = 1; it <= STEPS; it++){
