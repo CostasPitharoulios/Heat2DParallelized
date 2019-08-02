@@ -49,16 +49,17 @@ int malloc2darr(),free2darr(),isPrime();
 int main (int argc, char *argv[]){
 
    /// *** GET NUMBER OF THREADS FROM COMMAND LINE ***///
+printf("argc=%d %s %s %s %s end\n\n" , argc,argv[1],argv[1],argv[1],argv[1]);
     if (argc != 2){
        printf("ERROR: You gave wrong parameters\n\n");
 	return -1;
     }
-    int thread_count = strtol(argv[4], NULL, 10);
-    if (thread_count <= 4){
+    int thread_count = strtol(argv[1], NULL, 10);
+    if (thread_count <= 0){
 	printf("ERROR: You gave wrong number of threads!\n\n");
 	return -1;
     }
-    printf("thread count = %d\n\n\n\n", thread_count);
+    //printf("thread count = %d\n\n\n\n", thread_count);
 
 
 
