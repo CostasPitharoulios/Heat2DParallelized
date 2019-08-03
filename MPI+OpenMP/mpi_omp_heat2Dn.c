@@ -30,7 +30,7 @@
 
 #define NXPROB      320                 /* x dimension of problem grid */
 #define NYPROB      256                 /* y dimension of problem grid */
-#define STEPS       100                /* number of time steps */
+#define STEPS       1                /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
 #define RTAG        3                  /* message tag */
@@ -78,7 +78,7 @@ int main (int argc, char *argv[]){
     MPI_Status status;
 
     /* First, find out my taskid and how many tasks are running */
-    MPI_Init_thread(&argc,&argv, MPI_THREAD_MULTIPLE, &provided);
+    MPI_Init_thread(&argc,&argv, MPI_THREAD_FUNNELED, &provided);
     MPI_Comm_size(MPI_COMM_WORLD,&numworkers);
     MPI_Comm_rank(MPI_COMM_WORLD,&taskid);
     numworkers;
@@ -448,12 +448,12 @@ void updateInternal(int start, int end, int ny, float *u1, float *u2)
 void updateExternal(int start, int end, int ny,int right, int left,int up,int down, float *u1, float *u2)
 {
 
-    int ix, iy, 
+    int endloop,
+        endny,
+        ix, iy, 
         is; /* iteration start */
-
     int thread_rank = omp_get_thread_num();
 //printf("INSIDE updateExternal - thread_rank=%d\n\n", thread_rank);
-    int endny;
     #pragma omp barrier
     #pragma omp master
 //if (thread_rank == 0){
@@ -540,7 +540,6 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
     else
         iy = 2;
     
-    int endloop;
     if (down != MPI_PROC_NULL)
        endloop = end -2;
     else
