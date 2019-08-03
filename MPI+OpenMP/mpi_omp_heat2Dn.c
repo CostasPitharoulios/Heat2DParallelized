@@ -340,7 +340,7 @@ int main (int argc, char *argv[]){
             //}
 
             /// *** CALCULATION OF EXTERNAL DATA *** ///
-            updateExternal(1,rows, columns,right,left,up,down, &local[iz][0][0], &local[1-iz][0][0]);
+           // updateExternal(1,rows, columns,right,left,up,down, &local[iz][0][0], &local[1-iz][0][0]);
 
             #pragma omp barrier
             #pragma omp master
@@ -461,6 +461,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
 //printf("INSIDE updateExternal - thread_rank=%d\n\n", thread_rank);
     #pragma omp barrier
     #pragma omp master
+    {
 //if (thread_rank == 0){
 //
     ny+=2;
@@ -482,11 +483,11 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
     else
         endny = ny-3;
 
-//}
     is = iy;
+    }//end of #pragma
     #pragma omp barrier
 
-    #pragma omp for schedule(static,1) private(iy)
+    #pragma omp for schedule(static,1)
     for (iy=is; iy <= endny; iy++) 
          *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
@@ -499,6 +500,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
 
     #pragma omp barrier
     #pragma omp master
+    {
 //#if 0
 	/// CALCULATING LAST EXTERNAL ROW *** ///
     if (down != MPI_PROC_NULL)
@@ -515,7 +517,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
         endny = ny-3;
 
     is=iy;
-
+    } //end of #pragma
     #pragma omp barrier
 
     #pragma omp for schedule(static,1)
@@ -532,6 +534,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
 
     #pragma omp barrier
     #pragma omp master
+    {
 	/// *** CALCULATING FIRST EXTERNAL COLUMN *** ///
 
     if (up != MPI_PROC_NULL) //this is because if the block haw not an up neighbor we shouldnt's caclulate halo
@@ -551,7 +554,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
        endloop = end -3; 
 
     is = ix;
-
+    } //end of #pragma
     #pragma omp barrier
 
     #pragma omp for schedule(static,1)
@@ -567,6 +570,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
 
     #pragma omp barrier
     #pragma omp master
+    {
  /// *** CALCULATING LAST EXTERNAL COLUMN *** ///
 
    if (up != MPI_PROC_NULL) //this is because if the block haw not an up neighbor we shouldnt's caclulate halo
@@ -586,7 +590,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
     //printf("end =%d, endloop=%d\n\n", end, endloop);
 
     is = ix;
-
+    } //end of #pragma
     #pragma omp barrier
     #pragma parallel omp for schedule(static,1)
     for (ix=is; ix<endloop; ix++)
