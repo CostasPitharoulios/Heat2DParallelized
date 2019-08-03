@@ -28,8 +28,8 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define NXPROB      320                 /* x dimension of problem grid */
-#define NYPROB      256                 /* y dimension of problem grid */
+#define NXPROB      8//320                 /* x dimension of problem grid */
+#define NYPROB      12//256                 /* y dimension of problem grid */
 #define STEPS       1                /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
@@ -304,35 +304,37 @@ int main (int argc, char *argv[]){
 
             #pragma omp barrier
             #pragma omp master
-            {
-                //printf("Hello from step: %d thread: %d\n\n", it, thread_rank);
-                //if (thread_rank==0){
-                /// *** RECEIVING PROCEDURES *** ///
-                MPI_Irecv(&(local[iz][1][0]), 1, column, left, 0, comm_cart, &RRequestL); ///WARNING: 0??
-                MPI_Irecv(&(local[iz][1][columns+1]), 1, column, right, 0, comm_cart, &RRequestR); ///WARNING: 0?
-                MPI_Irecv(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &RRequestD); ///WARNING: 0??
-                MPI_Irecv(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &RRequestU); ///WARNING: 0??
+            //printf("Hello from step: %d thread: %d\n\n", it, thread_rank);
+            //if (thread_rank==0){
+            /// *** RECEIVING PROCEDURES *** ///
+	    {
+            MPI_Irecv(&(local[iz][1][0]), 1, column, left, 0, comm_cart, &RRequestL); ///WARNING: 0??
+            MPI_Irecv(&(local[iz][1][columns+1]), 1, column, right, 0, comm_cart, &RRequestR); ///WARNING: 0?
+            MPI_Irecv(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &RRequestD); ///WARNING: 0??
+            MPI_Irecv(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &RRequestU); ///WARNING: 0??
 
-                /// *** SENDING PROCEDURES *** ///
-                MPI_Isend(&(local[iz][1][columns]), 1, column, right, 0, comm_cart, &SRequestR);  //sends column to RIGHT neighbor
-                MPI_Isend(&(local[iz][1][1]), 1, column, left , 0, comm_cart, &SRequestL);	//sends column to left neighbor
-                MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &SRequestU);  //sends to UP neighbor
-                MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &SRequestD); //sends to DOWN neighbor
-                
-            }
+            /// *** SENDING PROCEDURES *** ///
+            MPI_Isend(&(local[iz][1][columns]), 1, column, right, 0, comm_cart, &SRequestR);  //sends column to RIGHT neighbor
+            MPI_Isend(&(local[iz][1][1]), 1, column, left , 0, comm_cart, &SRequestL);	//sends column to left neighbor
+            MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &SRequestU);  //sends to UP neighbor
+            MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &SRequestD); //sends to DOWN neighbor
+	    }
+            
+            //}
             #pragma omp barrier
             /// *** CALCULATION OF INTERNAL DATA *** ///
             updateInternal(2, rows-1, columns,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
             //line 0 contains neighbor's values and line 1 is the extrnal line of the block, so we don't want them. The same for the one before last and the last line.
             #pragma omp barrier
             #pragma omp master
-            {
-                //if (thread_rank==0){
-    //printf("Hello INSIDE from step: %d thread: %d\n\n", it, thread_rank);
-                if (right != MPI_PROC_NULL) MPI_Wait(&RRequestR , MPI_STATUS_IGNORE );
-                if (left != MPI_PROC_NULL) MPI_Wait(&RRequestL , MPI_STATUS_IGNORE );
-                if (up !=  MPI_PROC_NULL) MPI_Wait(&RRequestU , MPI_STATUS_IGNORE );
-                if (down !=  MPI_PROC_NULL) MPI_Wait(&RRequestD , MPI_STATUS_IGNORE );
+	    {
+            //if (thread_rank==0){
+//printf("Hello INSIDE from step: %d thread: %d\n\n", it, thread_rank);
+            if (right != MPI_PROC_NULL) MPI_Wait(&RRequestR , MPI_STATUS_IGNORE );
+            if (left != MPI_PROC_NULL) MPI_Wait(&RRequestL , MPI_STATUS_IGNORE );
+            if (up !=  MPI_PROC_NULL) MPI_Wait(&RRequestU , MPI_STATUS_IGNORE );
+            if (down !=  MPI_PROC_NULL) MPI_Wait(&RRequestD , MPI_STATUS_IGNORE );
+	    }
 
             }
             #pragma omp barrier
@@ -346,13 +348,11 @@ int main (int argc, char *argv[]){
             //if (thread_rank==0){
                 iz = 1-iz; 
 
-                if (right != MPI_PROC_NULL) MPI_Wait(&SRequestR , MPI_STATUS_IGNORE );
-                if (left != MPI_PROC_NULL) MPI_Wait(&SRequestL , MPI_STATUS_IGNORE );
-                if (up !=  MPI_PROC_NULL) MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
-                if (down !=  MPI_PROC_NULL) MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
-
-            }
-            #pragma omp barrier
+            if (right != MPI_PROC_NULL) MPI_Wait(&SRequestR , MPI_STATUS_IGNORE );
+            if (left != MPI_PROC_NULL) MPI_Wait(&SRequestL , MPI_STATUS_IGNORE );
+            if (up !=  MPI_PROC_NULL) MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
+            if (down !=  MPI_PROC_NULL) MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
+	    }
 #if 0
             for ( i=0; i<numworkers; i++){
                 if (taskid == i){
