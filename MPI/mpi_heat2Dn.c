@@ -29,7 +29,7 @@
 
 #define NXPROB      320                 /* x dimension of problem grid */
 #define NYPROB      256                 /* y dimension of problem grid */
-#define STEPS       1                /* number of time steps */
+#define STEPS       100                /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
 #define RTAG        3                  /* message tag */

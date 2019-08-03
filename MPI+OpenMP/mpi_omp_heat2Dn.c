@@ -30,7 +30,7 @@
 
 #define NXPROB      320                 /* x dimension of problem grid */
 #define NYPROB      256                 /* y dimension of problem grid */
-#define STEPS       1                /* number of time steps */
+#define STEPS       100                /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
 #define RTAG        3                  /* message tag */
@@ -423,7 +423,7 @@ void updateInternal(int start, int end, int ny, float *u1, float *u2)
 {
 
    int ix, iy;
-   #pragma omp for collapse(2) schedule(static,6)
+   #pragma omp parallel for collapse(2) schedule(static,6)
    for (ix = start; ix <= end; ix++){ 
       for (iy = 2; iy <= ny-1; iy++){
          *(u2+ix*(ny+2)+iy) = *(u1+ix*(ny+2)+iy)  + 
@@ -446,7 +446,8 @@ void updateInternal(int start, int end, int ny, float *u1, float *u2)
 void updateExternal(int start, int end, int ny,int right, int left,int up,int down, float *u1, float *u2)
 {
 
-    int ix, iy;
+    int ix, iy, 
+        is; /* iteration start */
 
     int thread_rank = omp_get_thread_num();
 //printf("INSIDE updateExternal - thread_rank=%d\n\n", thread_rank);
@@ -456,7 +457,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
     end+=2;
 
 	/// *** CALCULATING FIRST EXTERNAL ROW *** ///
-    if (up != MPI_PROC_NULL) //this is because if the block haw not an up neighbor we shouldnt's caclulate halo
+    if (up != MPI_PROC_NULL) //this is because if the block haw not an up neighbor we shouldnt's calculate halo
        ix = start;
     else
 	    ix = start+1;
@@ -471,8 +472,9 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
     else
         endny = ny-3;
 //}
-    #pragma omp parallel for schedule(static,1)
-    for (iy=iy; iy <= endny; iy++) 
+    is = iy;
+    #pragma omp parallel for schedule(static,1) private(iy)
+    for (iy=is; iy <= endny; iy++) 
          *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
@@ -494,8 +496,10 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
         endny = ny-2;
     else
         endny = ny-3;
+
+    is=iy;
     #pragma parallel omp for schedule(static,1)
-    for (iy=iy; iy <= endny; iy++) 
+    for (iy=is; iy <= endny; iy++) 
          *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
@@ -522,8 +526,9 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
     else
        endloop = end -3; 
 
+    is = ix;
     #pragma parallel omp for schedule(static,1)
-    for (ix=ix; ix<endloop; ix++)
+    for (ix=is; ix<endloop; ix++)
         *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
@@ -548,8 +553,10 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
     else 
        endloop = end -3; // the down right corner is calculated from row calculation, so we don't need to calculate again
     //printf("end =%d, endloop=%d\n\n", end, endloop);
+
+    is = ix;
     #pragma parallel omp for schedule(static,1)
-    for (ix=ix; ix<endloop; ix++)
+    for (ix=is; ix<endloop; ix++)
        *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
                           2.0 * *(u1+ix*ny+iy)) +
@@ -645,10 +652,4 @@ for (ix = 0; ix <= nx-1; ix++)
   for (iy = 0; iy <= ny-1; iy++)
      *(u+ix*ny+iy) = n++;
 }
-
-
-
-
-
-
 
