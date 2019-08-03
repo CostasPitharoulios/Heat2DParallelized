@@ -336,8 +336,8 @@ int main (int argc, char *argv[]){
             if (down !=  MPI_PROC_NULL) MPI_Wait(&RRequestD , MPI_STATUS_IGNORE );
 	    }
 
+            }
             #pragma omp barrier
-            //}
 
             /// *** CALCULATION OF EXTERNAL DATA *** ///
            // updateExternal(1,rows, columns,right,left,up,down, &local[iz][0][0], &local[1-iz][0][0]);
@@ -346,7 +346,7 @@ int main (int argc, char *argv[]){
             #pragma omp master
             {
             //if (thread_rank==0){
-            iz = 1-iz; 
+                iz = 1-iz; 
 
             if (right != MPI_PROC_NULL) MPI_Wait(&SRequestR , MPI_STATUS_IGNORE );
             if (left != MPI_PROC_NULL) MPI_Wait(&SRequestL , MPI_STATUS_IGNORE );
@@ -372,7 +372,6 @@ int main (int argc, char *argv[]){
                 MPI_Barrier(MPI_COMM_WORLD);
             }
 #endif
-            #pragma omp barrier
             //} /* End if */
         } /* End for */
     } /* End of #pragma omp parallel */
