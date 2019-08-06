@@ -28,8 +28,8 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define NXPROB      256                 /* x dimension of problem grid */
-#define NYPROB      320                /* y dimension of problem grid */
+#define NXPROB      320                 /* x dimension of problem grid */
+#define NYPROB      256                /* y dimension of problem grid */
 #define STEPS       100//100                /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
@@ -211,10 +211,12 @@ int main (int argc, char *argv[]){
     malloc2darr(&local[1], rows+2, columns+2);
 
     /* Initialize with 0's */
-    for (iz=0; iz<2; iz++)
+    for (iz=0; iz<2; iz++){
+        //#pragma omp parallel for collapse(2) schedule(static,1) //TODO auto to ekana logo tou First touch Policy.. alla kai pali den meiw8hke o xronos.
         for (ix=0; ix<rows+2; ix++) 
             for (iy=0; iy<columns+2; iy++) 
                 local[iz][ix][iy] = 0.0;
+    }
 
     /* Preparing the arguments of Scatterv */
 
@@ -297,36 +299,39 @@ int main (int argc, char *argv[]){
     /* Start thread_count threads */
      #pragma omp parallel num_threads(thread_count)
      {
-        int thread_rank = omp_get_thread_num();
+        //int thread_rank = omp_get_thread_num();
         int it;
         int newiz;
         for (it = 1; it <= STEPS; it++){
             newiz = (it % 2)*(-1)+1;
-            #pragma omp single
-            /// *** RECEIVING PROCEDURES *** ///
-	    {
-                MPI_Irecv(&(local[newiz][1][0]), 1, column, left, 0, comm_cart, &RRequestL); ///WARNING: 0??
-                MPI_Irecv(&(local[newiz][1][columns+1]), 1, column, right, 0, comm_cart, &RRequestR); ///WARNING: 0?
-                MPI_Irecv(&(local[newiz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &RRequestD); ///WARNING: 0??
-                MPI_Irecv(&(local[newiz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &RRequestU); ///WARNING: 0??
 
-            /// *** SENDING PROCEDURES *** ///
+            #pragma omp single
+	        {
+                /// *** RECEIVING PROCEDURES *** ///
+                MPI_Irecv(&(local[newiz][1][0]), 1, column, left, 0, comm_cart, &RRequestL);
+                MPI_Irecv(&(local[newiz][1][columns+1]), 1, column, right, 0, comm_cart, &RRequestR);
+                MPI_Irecv(&(local[newiz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &RRequestD);
+                MPI_Irecv(&(local[newiz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &RRequestU);
+
+                /// *** SENDING PROCEDURES *** ///
                 MPI_Isend(&(local[newiz][1][columns]), 1, column, right, 0, comm_cart, &SRequestR);  //sends column to RIGHT neighbor
                 MPI_Isend(&(local[newiz][1][1]), 1, column, left , 0, comm_cart, &SRequestL);	//sends column to left neighbor
                 MPI_Isend(&(local[newiz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &SRequestU);  //sends to UP neighbor
                 MPI_Isend(&(local[newiz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &SRequestD); //sends to DOWN neighbor
-	    }
+	        }
             
+
             /// *** CALCULATION OF INTERNAL DATA *** ///
             updateInternal(2, rows-1, columns,&local[newiz][0][0], &local[1-newiz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
             //line 0 contains neighbor's values and line 1 is the extrnal line of the block, so we don't want them. The same for the one before last and the last line.
             #pragma omp single
-	    {
+	        {
                 if (right != MPI_PROC_NULL) MPI_Wait(&RRequestR , MPI_STATUS_IGNORE );
                 if (left != MPI_PROC_NULL) MPI_Wait(&RRequestL , MPI_STATUS_IGNORE );
                 if (up !=  MPI_PROC_NULL) MPI_Wait(&RRequestU , MPI_STATUS_IGNORE );
                 if (down !=  MPI_PROC_NULL) MPI_Wait(&RRequestD , MPI_STATUS_IGNORE );
-	    }
+	        }
+
             /// *** CALCULATION OF EXTERNAL DATA *** ///
             updateExternal(1,rows, columns,right,left,up,down, &local[newiz][0][0], &local[1-newiz][0][0]);
             #pragma omp single
@@ -336,7 +341,7 @@ int main (int argc, char *argv[]){
                 if (left != MPI_PROC_NULL) MPI_Wait(&SRequestL , MPI_STATUS_IGNORE );
                 if (up !=  MPI_PROC_NULL) MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
                 if (down !=  MPI_PROC_NULL) MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
-	    }
+	        }
 /*            for ( i=0; i<numworkers; i++){
                 if (taskid == i){
                     printf("=========== To kommati tou %d meta thn antallagh =========\n",i);
@@ -436,7 +441,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
         endny,
         ix, iy, 
         is; /* iteration start */
-    int thread_rank = omp_get_thread_num();
+    //int thread_rank = omp_get_thread_num();
     ny+=2;
     end+=2;
 
