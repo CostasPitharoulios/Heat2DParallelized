@@ -57,9 +57,24 @@ int main (int argc, char *argv[]){
         rows, columns,              /* number of rows/columns of each block (e.x. 20x12) */
         i,j,x,y,ix,iy,iz,it;        /* loop variables */
     double start,finish;
-    char inputfile[80] = "initial.dat"; /* TODO read it from arguments? */
-    char outputfile[80] = "final.dat"; /* TODO read it from arguments? */
+    char inputfile[80] = "initial.dat";
+    char outputfile[80] = "final.dat";
     MPI_Status status;
+
+    /* Read arguments */
+    char flag = 0; 
+    for(i=1; i<argc; i++){
+        if(!strcmp(argv[i],"-i")){
+            strcpy(inputfile,argv[i+1]);
+            flag = 1;
+        }
+        if(!strcmp(argv[i],"-o"))
+            strcpy(outputfile,argv[i+1]);
+    }
+    if (!flag){
+        printf("ERROR: wrong arguments\n");
+        exit(22);
+    }
 
     /* First, find out my taskid and how many tasks are running */
     MPI_Init(&argc,&argv);
