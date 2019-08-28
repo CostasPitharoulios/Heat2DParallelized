@@ -47,8 +47,7 @@ void inidat(), prtdat(), updateExternal(), updateInternal(),  myprint(), DUMMYDU
 int malloc2darr(),free2darr(),isPrime(),checkSize();
 
 int main (int argc, char *argv[]){
-    float u[NXPROB][NYPROB],        /* array for grid */
-          **local[2];               /* stores the block assigned to current task, surrounded by halo points */
+    float **local[2];               /* stores the block assigned to current task, surrounded by halo points */
     int	taskid,                     /* this task's unique id */
         numworkers,                 /* number of worker processes */
         dest, source,               /* to - from for message send-receive */
@@ -95,8 +94,6 @@ int main (int argc, char *argv[]){
         /* Initialize grid */
         printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
         printf("Initializing grid and writing initial.dat file...\n");
-        inidat(NXPROB,NYPROB,u);
-        prtdat(NXPROB, NYPROB, u, "initial.dat");
 #if 0
         for (ix=0; ix<NXPROB; ix++){
             for (j=0; j<NYPROB; j++)
@@ -210,7 +207,7 @@ int main (int argc, char *argv[]){
     /* Preparing the datatypes for Parallel I/O */
 
     /* Define the datatype of send buffer elements */
-    int sendsizes[2]    = {NXPROB, NYPROB};    /* u size */
+    int sendsizes[2]    = {NXPROB, NYPROB};    /* grid size */
     int sendsubsizes[2] = {rows, columns};     /* local size without halo */
     int sendstarts[2]   = {0,0};
 
@@ -349,7 +346,6 @@ int main (int argc, char *argv[]){
     finish = MPI_Wtime();
 
     /* Gather it all back */
-    //MPI_Gatherv(&(local[iz][0][0]), 1, recvsubarrtype, &(u[0][0]),  sendsubarrtype, MASTER, MPI_COMM_WORLD);
 
     /* Each worker writes to its portion of the file */
     MPI_File_open(MPI_COMM_WORLD, outputfile, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
@@ -367,13 +363,11 @@ int main (int argc, char *argv[]){
         printf("Processed grid:\n");
         for (ix=0; ix<NXPROB; ix++){
             for (j=0; j<NYPROB; j++)
-                printf("%6.1f ", u[ix][j]);
             printf("\n\n");
         }
         */
 
         //printf("Writing final.dat file and generating graph...\n");
-        //prtdat(NXPROB, NYPROB, &u[0][0], "final.dat");
     }
 
     /* Free malloc'd memory */
