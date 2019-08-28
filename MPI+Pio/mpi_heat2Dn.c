@@ -668,13 +668,3 @@ int free2darr(float ***array) {
 
     return 0;
 }
-
-/* TODO delete kai authn */
-void DUMMYDUMDUM(int nx, int ny, float *u) {
-int ix, iy;
-int n=0;
-
-for (ix = 0; ix <= nx-1; ix++) 
-  for (iy = 0; iy <= ny-1; iy++)
-     *(u+ix*ny+iy) = n++;
-}

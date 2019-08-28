@@ -26,6 +26,7 @@
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 
 #define NXPROB      320                 /* x dimension of problem grid */
@@ -48,21 +49,6 @@ int malloc2darr(),free2darr(),isPrime();
 
 int main (int argc, char *argv[]){
 
-   /// *** GET NUMBER OF THREADS FROM COMMAND LINE ***///
-    int thread_count;
-    if (argc == 1)
-        thread_count = 1;
-    else if (argc == 2)
-       thread_count = strtol(argv[1], NULL, 10);
-    else{
-        printf("ERROR: You gave wrong parameters\n\n");
-	    return 32;
-    }
-    if (thread_count <= 0){
-	    printf("ERROR: You gave wrong number of threads!\n\n");
-	    return 32;
-    }
-
     float u[NXPROB][NYPROB],        /* array for grid */
           **local[2];               /* stores the block assigned to current task, surrounded by halo points */
     int	taskid,                     /* this task's unique id */
@@ -71,11 +57,35 @@ int main (int argc, char *argv[]){
         left,right,up,down,         /* neighbor tasks */
         msgtype,                    /* for message types */
         xdim, ydim,                 /* dimensions of grid partition (e.x. 4x4) */
+        thread_count=1,
         rows, columns,              /* number of rows/columns of each block (e.x. 20x12) */
         i,j,x,y,ix,iy,iz,        /* loop variables */
         provided;
     double start,finish;
+    char inputfile[80] = "initial.dat";
+    char outputfile[80] = "final.dat";
     MPI_Status status;
+
+    /* Read arguments */
+    char flag = 0; 
+    for(i=1; i<argc; i++){
+        if(!strcmp(argv[i],"-i"))
+            strcpy(inputfile,argv[i+1]);
+        if(!strcmp(argv[i],"-o"))
+            strcpy(outputfile,argv[i+1]);
+        if(!strcmp(argv[i],"-t")){
+            thread_count = strtol(argv[i+1], NULL, 10);
+            flag = 1;
+        }
+    }
+    if (!flag){
+        printf("ERROR: wrong arguments\n");
+        exit(22);
+    }
+    if (thread_count <= 0){
+	    printf("ERROR: wrong number of threads!\n");
+        exit(22);
+    }
 
     /* First, find out my taskid and how many tasks are running */
     MPI_Init_thread(&argc,&argv, MPI_THREAD_MULTIPLE, &provided);
