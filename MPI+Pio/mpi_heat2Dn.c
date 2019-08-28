@@ -62,18 +62,11 @@ int main (int argc, char *argv[]){
     MPI_Status status;
 
     /* Read arguments */
-    char flag = 0; 
     for(i=1; i<argc; i++){
-        if(!strcmp(argv[i],"-i")){
+        if(!strcmp(argv[i],"-i"))
             strcpy(inputfile,argv[i+1]);
-            flag = 1;
-        }
         if(!strcmp(argv[i],"-o"))
             strcpy(outputfile,argv[i+1]);
-    }
-    if (!flag){
-        printf("ERROR: wrong arguments\n");
-        exit(22);
     }
 
     /* First, find out my taskid and how many tasks are running */
@@ -106,9 +99,7 @@ int main (int argc, char *argv[]){
 
         printf ("Starting mpi_heat2D with %d worker tasks.\n", numworkers);
 
-        /* Initialize grid */
         printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
-        printf("Initializing grid and writing initial.dat file...\n");
 #if 0
         for (ix=0; ix<NXPROB; ix++){
             for (j=0; j<NYPROB; j++)
@@ -252,20 +243,6 @@ int main (int argc, char *argv[]){
     MPI_File_read(fh, &(local[0][0][0]), 1, recvsubarrtype, &status);
     MPI_File_close(&fh);
 
-#if 0
-    for ( i=0; i<numworkers; i++){
-        if (taskid == i){
-            printf("=========== To kommati tou %d =========\n",i);
-            for (ix=0; ix<rows+2; ix++){
-                for (j=0; j<columns+2; j++)
-                    printf("%6.1f ", local[0][ix][j]);
-                printf("\n\n");
-            }
-        }
-        MPI_Barrier(MPI_COMM_WORLD);
-    }
-#endif
-
     /// *** WORK STARTS HERE *** ///
 
     /* Start the timer */
@@ -368,29 +345,15 @@ int main (int argc, char *argv[]){
     /* Set view in order to define which portion of the file is visible to each worker */
     MPI_File_set_view(fh, disp, MPI_FLOAT, sendsubarrtype, "native", MPI_INFO_NULL);
 
-    /* Read from the file */
-    MPI_File_write(fh, &(local[0][0][0]), 1, recvsubarrtype, &status);
+    /* Write to the file */
+    MPI_File_write(fh, &(local[iz][0][0]), 1, recvsubarrtype, &status);
     MPI_File_close(&fh);
 
     printf("Process:%d, Elapsed time: %e secs\n",taskid,finish-start);
-    if (taskid==MASTER){
-        /*
-        printf("Processed grid:\n");
-        for (ix=0; ix<NXPROB; ix++){
-            for (j=0; j<NYPROB; j++)
-            printf("\n\n");
-        }
-        */
-
-        //printf("Writing final.dat file and generating graph...\n");
-    }
 
     /* Free malloc'd memory */
     free2darr(&local[0]);
     free2darr(&local[1]);
-
-    if (taskid==MASTER){
-    }
 
     MPI_Type_free(&type);
     MPI_Type_free(&sendsubarrtype);
