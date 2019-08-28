@@ -25,6 +25,7 @@
 #include "mpi.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 
 #define NXPROB      320                 /* x dimension of problem grid */
@@ -43,7 +44,7 @@ struct Parms {
 } parms = {0.1, 0.1};
 
 void inidat(), prtdat(), updateExternal(), updateInternal(),  myprint(), DUMMYDUMDUM();
-int malloc2darr(),free2darr(),isPrime(), isIdentical();
+int malloc2darr(),free2darr(),isPrime(), isIdentical(),checkSize();
 
 int main (int argc, char *argv[]){
     float u[NXPROB][NYPROB],        /* array for grid */
@@ -57,7 +58,17 @@ int main (int argc, char *argv[]){
         rows, columns,              /* number of rows/columns of each block (e.x. 20x12) */
         i,j,x,y,ix,iy,iz,it;        /* loop variables */
     double start,finish;
+    char inputfile[80] = "initial.dat";
+    char outputfile[80] = "final.dat";
     MPI_Status status;
+
+    /* Read arguments */
+    for(i=1; i<argc; i++){
+        if(!strcmp(argv[i],"-i"))
+            strcpy(inputfile,argv[i+1]);
+        if(!strcmp(argv[i],"-o"))
+            strcpy(outputfile,argv[i+1]);
+    }
 
     /* First, find out my taskid and how many tasks are running */
     MPI_Init(&argc,&argv);
@@ -81,6 +92,16 @@ int main (int argc, char *argv[]){
             MPI_Abort(MPI_COMM_WORLD, 22);
             exit(22);
         }
+
+        if (!checkSize(inputfile)){
+            printf("ERROR: grid size of input file is diffrent that the definitions of NXPROB, NYPROB or file doesn't exist\n");
+            MPI_Abort(MPI_COMM_WORLD, 22);
+            exit(22);
+        }
+
+        printf ("Starting mpi_heat2D with %d worker tasks.\n", numworkers);
+
+
 
         /* Initialize grid */
         printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
@@ -218,28 +239,17 @@ int main (int argc, char *argv[]){
     MPI_Type_create_subarray(2, recvsizes, recvsubsizes, recvstarts, MPI_ORDER_C, MPI_FLOAT, &recvsubarrtype);
     MPI_Type_commit(&recvsubarrtype);
 
-    int *sendcounts=NULL, *displs=NULL; 
+    /* Open file for reading */ 
+    MPI_File fh;
+    MPI_File_open(MPI_COMM_WORLD, inputfile, MPI_MODE_RDONLY, MPI_INFO_NULL, &fh);
+  
+    /* Set view in order to define which portion of the file is visible to each worker */
+    MPI_Offset disp = ((taskid/ydim)*rows*NYPROB + taskid%ydim*columns)*sizeof(float);
+    MPI_File_set_view(fh, disp, MPI_FLOAT, sendsubarrtype, "native", MPI_INFO_NULL);
 
-    if (taskid == MASTER){
-        sendcounts = (int*)malloc(sizeof(int)*xdim*ydim);
-        displs = (int*)malloc(sizeof(int)*xdim*ydim);
-
-        /* Every process has one piece */
-        for (i=0; i<xdim*ydim; i++) sendcounts[i]=1; 
-
-        /* Determine the starting point of every task's data */
-        int disp = 0;
-        for (i=0; i<xdim; i++){
-            for (j=0; j<ydim; j++){
-                displs[i*ydim+j] = disp;
-                disp +=1;
-            }
-            disp += (rows-1)*ydim;
-        }
-    }
-
-    /* Scatter array to all processes */
-    MPI_Scatterv(&(u[0][0]), sendcounts, displs, sendsubarrtype, &(local[0][0][0]), columns*rows, recvsubarrtype, MASTER, MPI_COMM_WORLD);
+    /* Read from the file */
+    MPI_File_read(fh, &(local[0][0][0]), 1, recvsubarrtype, &status);
+    MPI_File_close(&fh);
 
     /// *** WORK STARTS HERE *** ///
 
@@ -361,31 +371,22 @@ int main (int argc, char *argv[]){
     finish = MPI_Wtime();
 
     /* Gather it all back */
-    MPI_Gatherv(&(local[iz][0][0]), 1, recvsubarrtype, &(u[0][0]), sendcounts, displs, sendsubarrtype, MASTER, MPI_COMM_WORLD);
+
+    /* Each worker writes to its portion of the file */
+    MPI_File_open(MPI_COMM_WORLD, outputfile, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
+  
+    /* Set view in order to define which portion of the file is visible to each worker */
+    MPI_File_set_view(fh, disp, MPI_FLOAT, sendsubarrtype, "native", MPI_INFO_NULL);
+
+    /* Write to the file */
+    MPI_File_write(fh, &(local[iz][0][0]), 1, recvsubarrtype, &status);
+    MPI_File_close(&fh);
 
     printf("Process:%d, Elapsed time: %e secs\n",taskid,finish-start);
-    if (taskid==MASTER){
-        /*
-        printf("Processed grid:\n");
-        for (ix=0; ix<NXPROB; ix++){
-            for (j=0; j<NYPROB; j++)
-                printf("%6.1f ", u[ix][j]);
-            printf("\n\n");
-        }
-        */
-
-        printf("Writing final.dat file and generating graph...\n");
-        prtdat(NXPROB, NYPROB, &u[0][0], "final.dat");
-    }
 
     /* Free malloc'd memory */
     free2darr(&local[0]);
     free2darr(&local[1]);
-
-    if (taskid==MASTER){
-        free(displs);
-        free(sendcounts);
-    }
 
     MPI_Type_free(&type);
     MPI_Type_free(&sendsubarrtype);
@@ -530,7 +531,6 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
                           parms.cy * (*(u1+ix*ny+iy+1) +
                          *(u1+ix*ny+iy-1) - 
                           2.0 * *(u1+ix*ny+iy)); 
-
 }
 
 
@@ -578,6 +578,19 @@ int isPrime(int n){
         if (n%i==0) 
             return 0;
     return 1;
+}
+
+/* Checks if grid size of given file is the same as NXPROB x NYPROB */
+int checkSize(const char *filename){
+    FILE *fp;
+    fp = fopen(filename, "rb");
+    if(!fp)
+        return 0;
+    fseek(fp, 0L, SEEK_END);
+    long int sz = ftell(fp);
+    fclose(fp);
+
+    return sz == NYPROB*NXPROB*sizeof(float);
 }
 
 int malloc2darr(float ***array, int n, int m) {
