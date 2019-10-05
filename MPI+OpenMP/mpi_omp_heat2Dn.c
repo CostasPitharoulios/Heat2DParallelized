@@ -45,7 +45,7 @@ struct Parms {
 } parms = {0.1, 0.1};
 
 void inidat(), prtdat(), updateExternal(), updateInternal(),  myprint(), DUMMYDUMDUM();
-int malloc2darr(),free2darr(),isPrime(),checkSize();
+int malloc2darr(),free2darr(),isPrime(),isIdentical(), checkSize();
 
 int main (int argc, char *argv[]){
 
@@ -338,6 +338,34 @@ int main (int argc, char *argv[]){
             updateExternal(1,rows, columns,right,left,up,down, &local[newiz][0][0], &local[1-newiz][0][0]);
             #pragma omp single
             {
+
+		//----------------------------------------------------------------------------------------------------------------------------------------------
+ 	        // Here we check for convergence (SYGKLISH). In case the whole upgraded array is the same as its previous array, then
+        	// we got to stop iterating because no other changes are  going to happen!
+
+	        // HOW IT WORKS: Every task, checks if its new upgraded sub-array is the same as its previous. If the array is the same, then it returns 1.
+      	        // Then we use MPI_Allreduce with logical and to combine all the results of the rest of the tasks. If logical and gives 1, this means 
+	        // that no sub-array of the array has changed.
+        	//----------------------------------------------------------------------------------------------------------------------------------------------
+
+        	int local_identical, global_identical;
+	        local_identical = isIdentical(&local[iz][0][0], &local[1-iz][0][0], rows+2, columns+2);
+        	MPI_Allreduce(&local_identical, &global_identical, 1, MPI_INT, MPI_LAND,MPI_COMM_WORLD);
+
+	        //>>>>>>>>>>>>>WARNING<<<<<<<<<<<//
+        	// *** If we want to be accurate, in case we find out that an array has not changed we have to stop iterating 
+	        // because no other changes will be done. 
+        	// BUT
+	        // Here we don't stop iterating, because we want all versions of our program to run for the same STEPS in order to compare their total time***
+        	//>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<//
+	        /*if (global_identical == 1){
+        	      printf("HELL YEAH! THEY ARE IDENTICAL!it: %d, taskid:%d\n\n\n\n\n\n", it,taskid);
+             	      break;
+	        }*/
+
+        	//----------------------------------------------------------------------------------------------------------------------------------------------
+
+
 
                 if (right != MPI_PROC_NULL) MPI_Wait(&SRequestR , MPI_STATUS_IGNORE );
                 if (left != MPI_PROC_NULL) MPI_Wait(&SRequestL , MPI_STATUS_IGNORE );
@@ -649,4 +677,25 @@ for (ix = 0; ix <= nx-1; ix++)
   for (iy = 0; iy <= ny-1; iy++)
      *(u+ix*ny+iy) = n++;
 }
+
+
+//returns 1 when arrays are identical and 0 when the are not identical
+int isIdentical(float *array1,float *array2, int rows,int columns){
+    int i,j;
+//    printf("ROWS =%d, COLUMNS= %d\n\n", rows,columns);
+    for (i=1; i<rows-1; i++){
+        for (j=1; j<columns-1; j++){
+//          printf("Is %6.1f = %6.1f  \n\n\n", *(array1+i*(columns)+j),*(array2+i*(columns)+j));
+
+//            if ( *(array1+i*(columns)+j) != *(array2+i*(columns)+j)){
+            if (fabs( *(array1+i*(columns)+j) - *(array2+i*(columns)+j)) > 0.01){
+//              printf("RETURNING 0 BECAUSE  %6.10f != %6.10f  \n\n\n", *(array1+i*(columns)+j),*(array2+i*(columns)+j));
+                return 0;
+            }
+        }
+    }
+    return 1;
+
+}
+
 
