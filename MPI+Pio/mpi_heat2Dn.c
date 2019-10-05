@@ -28,8 +28,8 @@
 #include <string.h>
 #include <math.h>
 
-#define NXPROB      8                  /* x dimension of problem grid */
-#define NYPROB      12                 /* y dimension of problem grid */
+#define NXPROB      80                  /* x dimension of problem grid */
+#define NYPROB      64                 /* y dimension of problem grid */
 #define STEPS       100                /* number of time steps */
 #define BEGIN       2                  /* message tag */
 #define LTAG        2                  /* message tag */
