@@ -156,7 +156,7 @@ int main (int argc, char *argv[]){
             MPI_Send(&down, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
         }
 
-        /* Master does its part of the work */
+        /* Master computes its neighbours */
         left = MPI_PROC_NULL;
         up = MPI_PROC_NULL;
         if (numworkers == 1)

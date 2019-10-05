@@ -81,6 +81,7 @@ MPI_Status status;
       printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
       printf("Initializing grid and writing initial.dat file...\n");
       inidat(NXPROB, NYPROB, u);
+      //DUMMYDUMDUM(NXPROB, NYPROB, u);
       prtdat(NXPROB, NYPROB, u, "initial.dat");
 
       /* Distribute work to workers.  Must first figure out how many rows to */
@@ -238,15 +239,24 @@ void prtdat(int nx, int ny, float *u1, char *fnam) {
 int ix, iy;
 FILE *fp;
 
-fp = fopen(fnam, "w");
-for (iy = ny-1; iy >= 0; iy--) {
+fp = fopen(fnam, "wb");
+
+/*for (iy = ny-1; iy >= 0; iy--) {
   for (ix = 0; ix <= nx-1; ix++) {
-    fprintf(fp, "%6.1f", *(u1+ix*ny+iy));
-    if (ix != nx-1) 
-      fprintf(fp, " ");
-    else
-      fprintf(fp, "\n");
-    }
+    fwrite(u1+ix*ny+iy, sizeof(float), 1, fp);
   }
+}*/
+fwrite(u1, sizeof(float), ny*nx, fp);
+
 fclose(fp);
+}
+
+/* TODO delete kai authn */
+void DUMMYDUMDUM(int nx, int ny, float *u) {
+int ix, iy;
+int n=0;
+
+for (ix = 0; ix <= nx-1; ix++) 
+  for (iy = 0; iy <= ny-1; iy++)
+     *(u+ix*ny+iy) = n++;
 }

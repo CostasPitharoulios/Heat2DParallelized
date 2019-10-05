@@ -23,16 +23,15 @@
  ****************************************************************************/
 
 #include "mpi.h"
-#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
-#define NXPROB      320                /* x dimension of problem grid */
-#define NYPROB      256                /* y dimension of problem grid */
+#define NXPROB      8                  /* x dimension of problem grid */
+#define NYPROB      12                 /* y dimension of problem grid */
 #define STEPS       100                /* number of time steps */
-#define BEGIN       1                  /* message tag */
+#define BEGIN       2                  /* message tag */
 #define LTAG        2                  /* message tag */
 #define RTAG        3                  /* message tag */
 #define NONE        0                  /* indicates no neighbor */
@@ -45,10 +44,9 @@ struct Parms {
 } parms = {0.1, 0.1};
 
 void inidat(), prtdat(), updateExternal(), updateInternal(),  myprint(), DUMMYDUMDUM();
-int malloc2darr(),free2darr(),isPrime(),isIdentical(), checkSize();
+int malloc2darr(),free2darr(),isPrime(),checkSize();
 
 int main (int argc, char *argv[]){
-
     float **local[2];               /* stores the block assigned to current task, surrounded by halo points */
     int	taskid,                     /* this task's unique id */
         numworkers,                 /* number of worker processes */
@@ -56,50 +54,35 @@ int main (int argc, char *argv[]){
         left,right,up,down,         /* neighbor tasks */
         msgtype,                    /* for message types */
         xdim, ydim,                 /* dimensions of grid partition (e.x. 4x4) */
-        thread_count=1,
         rows, columns,              /* number of rows/columns of each block (e.x. 20x12) */
-        i,j,x,y,ix,iy,iz,        /* loop variables */
-        provided;
+        i,j,x,y,ix,iy,iz,it;        /* loop variables */
     double start,finish;
     char inputfile[80] = "initial.dat";
     char outputfile[80] = "final.dat";
     MPI_Status status;
 
     /* Read arguments */
-    char flag = 0; 
     for(i=1; i<argc; i++){
         if(!strcmp(argv[i],"-i"))
             strcpy(inputfile,argv[i+1]);
         if(!strcmp(argv[i],"-o"))
             strcpy(outputfile,argv[i+1]);
-        if(!strcmp(argv[i],"-t")){
-            thread_count = strtol(argv[i+1], NULL, 10);
-            flag = 1;
-        }
-    }
-    if (!flag){
-        printf("ERROR: wrong arguments\n");
-        exit(22);
-    }
-    if (thread_count <= 0){
-	    printf("ERROR: wrong number of threads!\n");
-        exit(22);
     }
 
     /* First, find out my taskid and how many tasks are running */
-    MPI_Init_thread(&argc,&argv, MPI_THREAD_MULTIPLE, &provided);
+    MPI_Init(&argc,&argv);
     MPI_Comm_size(MPI_COMM_WORLD,&numworkers);
     MPI_Comm_rank(MPI_COMM_WORLD,&taskid);
     numworkers;
 
-
     if (taskid == MASTER) {
+        /************************* Master code *******************************/
+
         if ((isPrime(numworkers))){
             printf("ERROR: the number of workers is prime (%d).\n",numworkers);
             MPI_Abort(MPI_COMM_WORLD, 22);
             exit(22);
         }
-        printf ("Starting mpi_heat2D with %d worker tasks.\n", numworkers);
 
         /* If the number of cells is not divisible by numworkers, abort */
         if ((NXPROB*NYPROB)%numworkers){
@@ -114,9 +97,7 @@ int main (int argc, char *argv[]){
             exit(22);
         }
 
-        printf ("Starting mpi_heat2D with %d worker tasks and %d threads.\n", numworkers,thread_count);
-
-
+        printf ("Starting mpi_heat2D with %d worker tasks.\n", numworkers);
 
         printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
 #if 0
@@ -188,7 +169,7 @@ int main (int argc, char *argv[]){
             MPI_Send(&down, 1, MPI_INT, dest, BEGIN, MPI_COMM_WORLD);
         }
 
-        /* Master does its part of the work */
+        /* Master computes its neighbours */
         left = MPI_PROC_NULL;
         up = MPI_PROC_NULL;
         if (numworkers == 1)
@@ -224,14 +205,12 @@ int main (int argc, char *argv[]){
     malloc2darr(&local[1], rows+2, columns+2);
 
     /* Initialize with 0's */
-    for (iz=0; iz<2; iz++){
-        //#pragma omp parallel for collapse(2) schedule(static,1) //TODO auto to ekana logo tou First touch Policy.. alla kai pali den meiw8hke o xronos.
+    for (iz=0; iz<2; iz++)
         for (ix=0; ix<rows+2; ix++) 
             for (iy=0; iy<columns+2; iy++) 
                 local[iz][ix][iy] = 0.0;
-    }
 
-    /* Preparing the datatypes for Parallel I/o */
+    /* Preparing the datatypes for Parallel I/O */
 
     /* Define the datatype of send buffer elements */
     int sendsizes[2]    = {NXPROB, NYPROB};    /* grid size */
@@ -251,7 +230,7 @@ int main (int argc, char *argv[]){
     MPI_Datatype recvsubarrtype;
     MPI_Type_create_subarray(2, recvsizes, recvsubsizes, recvstarts, MPI_ORDER_C, MPI_FLOAT, &recvsubarrtype);
     MPI_Type_commit(&recvsubarrtype);
-
+   
     /* Open file for reading */ 
     MPI_File fh;
     MPI_File_open(MPI_COMM_WORLD, inputfile, MPI_MODE_RDONLY, MPI_INFO_NULL, &fh);
@@ -264,7 +243,7 @@ int main (int argc, char *argv[]){
     MPI_File_read(fh, &(local[0][0][0]), 1, recvsubarrtype, &status);
     MPI_File_close(&fh);
 
-     /// *** WORK STARTS HERE *** ///
+    /// *** WORK STARTS HERE *** ///
 
     /* Start the timer */
     MPI_Barrier(MPI_COMM_WORLD);
@@ -297,106 +276,68 @@ int main (int argc, char *argv[]){
     MPI_Startall(8,req);
     MPI_Waitall(8,req,MPI_STATUS_IGNORE);
 
+    for (it = 1; it <= STEPS; it++){
 
-    /* Start thread_count threads */
-     #pragma omp parallel num_threads(thread_count)
-     {
-        //int thread_rank = omp_get_thread_num();
-        int it;
-        int newiz;
-        for (it = 1; it <= STEPS; it++){
-            newiz = (it % 2)*(-1)+1;
+        /// *** RECEIVING PROCEDURES *** ///
+        MPI_Irecv(&(local[iz][1][0]), 1, column, left, 0, comm_cart, &RRequestL); ///WARNING: 0??
+        MPI_Irecv(&(local[iz][1][columns+1]), 1, column, right, 0, comm_cart, &RRequestR); ///WARNING: 0?
+        MPI_Irecv(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &RRequestD); ///WARNING: 0??
+        MPI_Irecv(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &RRequestU); ///WARNING: 0??
 
-            #pragma omp single
-	        {
-                /// *** RECEIVING PROCEDURES *** ///
-                MPI_Irecv(&(local[newiz][1][0]), 1, column, left, 0, comm_cart, &RRequestL);
-                MPI_Irecv(&(local[newiz][1][columns+1]), 1, column, right, 0, comm_cart, &RRequestR);
-                MPI_Irecv(&(local[newiz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &RRequestD);
-                MPI_Irecv(&(local[newiz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &RRequestU);
+        /// *** SENDING PROCEDURES *** ///
+        MPI_Isend(&(local[iz][1][columns]), 1, column, right, 0, comm_cart, &SRequestR);  //sends column to RIGHT neighbor
+        MPI_Isend(&(local[iz][1][1]), 1, column, left , 0, comm_cart, &SRequestL);	//sends column to left neighbor
+        MPI_Isend(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &SRequestU);  //sends to UP neighbor
+        MPI_Isend(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &SRequestD); //sends to DOWN neighbor
 
-                /// *** SENDING PROCEDURES *** ///
-                MPI_Isend(&(local[newiz][1][columns]), 1, column, right, 0, comm_cart, &SRequestR);  //sends column to RIGHT neighbor
-                MPI_Isend(&(local[newiz][1][1]), 1, column, left , 0, comm_cart, &SRequestL);	//sends column to left neighbor
-                MPI_Isend(&(local[newiz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &SRequestU);  //sends to UP neighbor
-                MPI_Isend(&(local[newiz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &SRequestD); //sends to DOWN neighbor
-	        }
-            
+        /// *** CALCULATION OF INTERNAL DATA *** ///
+        updateInternal(2, rows-1, columns,&local[iz][0][0], &local[1-iz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
+        //line 0 contains neighbor's values and line 1 is the extrnal line of the block, so we don't want them. The same for the one before last and the last line.
 
-            /// *** CALCULATION OF INTERNAL DATA *** ///
-            updateInternal(2, rows-1, columns,&local[newiz][0][0], &local[1-newiz][0][0]); // 2 and xdim-3 because we want to calculate only internal nodes of the block.
-            //line 0 contains neighbor's values and line 1 is the extrnal line of the block, so we don't want them. The same for the one before last and the last line.
-            #pragma omp single
-	        {
-                if (right != MPI_PROC_NULL) MPI_Wait(&RRequestR , MPI_STATUS_IGNORE );
-                if (left != MPI_PROC_NULL) MPI_Wait(&RRequestL , MPI_STATUS_IGNORE );
-                if (up !=  MPI_PROC_NULL) MPI_Wait(&RRequestU , MPI_STATUS_IGNORE );
-                if (down !=  MPI_PROC_NULL) MPI_Wait(&RRequestD , MPI_STATUS_IGNORE );
-	        }
+        if (right != MPI_PROC_NULL) MPI_Wait(&RRequestR , MPI_STATUS_IGNORE );
+        if (left != MPI_PROC_NULL) MPI_Wait(&RRequestL , MPI_STATUS_IGNORE );
+        if (up !=  MPI_PROC_NULL) MPI_Wait(&RRequestU , MPI_STATUS_IGNORE );
+        if (down !=  MPI_PROC_NULL) MPI_Wait(&RRequestD , MPI_STATUS_IGNORE );
 
-            /// *** CALCULATION OF EXTERNAL DATA *** ///
-            updateExternal(1,rows, columns,right,left,up,down, &local[newiz][0][0], &local[1-newiz][0][0]);
-            #pragma omp single
-            {
+        /// *** CALCULATION OF EXTERNAL DATA *** ///
+        updateExternal(1,rows, columns,right,left,up,down, &local[iz][0][0], &local[1-iz][0][0]);
 
-		//----------------------------------------------------------------------------------------------------------------------------------------------
- 	        // Here we check for convergence (SYGKLISH). In case the whole upgraded array is the same as its previous array, then
-        	// we got to stop iterating because no other changes are  going to happen!
+        iz = 1-iz; 
 
-	        // HOW IT WORKS: Every task, checks if its new upgraded sub-array is the same as its previous. If the array is the same, then it returns 1.
-      	        // Then we use MPI_Allreduce with logical and to combine all the results of the rest of the tasks. If logical and gives 1, this means 
-	        // that no sub-array of the array has changed.
-        	//----------------------------------------------------------------------------------------------------------------------------------------------
+        if (right != MPI_PROC_NULL) MPI_Wait(&SRequestR , MPI_STATUS_IGNORE );
+        if (left != MPI_PROC_NULL) MPI_Wait(&SRequestL , MPI_STATUS_IGNORE );
+        if (up !=  MPI_PROC_NULL) MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
+        if (down !=  MPI_PROC_NULL) MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
 
-        	int local_identical, global_identical;
-	        local_identical = isIdentical(&local[iz][0][0], &local[1-iz][0][0], rows+2, columns+2);
-        	MPI_Allreduce(&local_identical, &global_identical, 1, MPI_INT, MPI_LAND,MPI_COMM_WORLD);
-
-	        //>>>>>>>>>>>>>WARNING<<<<<<<<<<<//
-        	// *** If we want to be accurate, in case we find out that an array has not changed we have to stop iterating 
-	        // because no other changes will be done. 
-        	// BUT
-	        // Here we don't stop iterating, because we want all versions of our program to run for the same STEPS in order to compare their total time***
-        	//>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<//
-	        /*if (global_identical == 1){
-        	      printf("HELL YEAH! THEY ARE IDENTICAL!it: %d, taskid:%d\n\n\n\n\n\n", it,taskid);
-             	      break;
-	        }*/
-
-        	//----------------------------------------------------------------------------------------------------------------------------------------------
-
-
-
-                if (right != MPI_PROC_NULL) MPI_Wait(&SRequestR , MPI_STATUS_IGNORE );
-                if (left != MPI_PROC_NULL) MPI_Wait(&SRequestL , MPI_STATUS_IGNORE );
-                if (up !=  MPI_PROC_NULL) MPI_Wait(&SRequestU , MPI_STATUS_IGNORE );
-                if (down !=  MPI_PROC_NULL) MPI_Wait(&SRequestD , MPI_STATUS_IGNORE );
-	        }
-/*            for ( i=0; i<numworkers; i++){
-                if (taskid == i){
-                    printf("=========== To kommati tou %d meta thn antallagh =========\n",i);
-                    for (ix=0; ix<rows+2; ix++){
-                        for (j=0; j<columns+2; j++)
-                            printf("%6.1f ", local[1-iz][ix][j]);
-                        printf("\n\n");
-                    }
-                printf("=========== To kommati tou %d meta thn UPDATE =========\n",i);
-                    for (ix=0; ix<rows+2; ix++){
-                        for (j=0; j<columns+2; j++)
-                            printf("%6.1f ", local[iz][ix][j]);
-                        printf("\n\n");
-                    }
+#if 0
+        for ( i=0; i<numworkers; i++){
+            if (taskid == i){
+                printf("=========== To kommati tou %d meta thn antallagh =========\n",i);
+                for (ix=0; ix<rows+2; ix++){
+                    for (j=0; j<columns+2; j++)
+                        printf("%6.1f ", local[1-iz][ix][j]);
+                    printf("\n\n");
                 }
-                MPI_Barrier(MPI_COMM_WORLD);
-              }*/
-        } /* End for */
-    } /* End of #pragma omp parallel */
+	        printf("=========== To kommati tou %d meta thn UPDATE =========\n",i);
+                for (ix=0; ix<rows+2; ix++){
+                    for (j=0; j<columns+2; j++)
+                        printf("%6.1f ", local[iz][ix][j]);
+                    printf("\n\n");
+                }
+            }
+            MPI_Barrier(MPI_COMM_WORLD);
+        }
+#endif
+
+
+    }
+
     /// *** WORK COMPLETE *** ///
+
     /* Stop the timer */
     finish = MPI_Wtime();
 
     /* Gather it all back */
-    iz = STEPS %2;
 
     /* Each worker writes to its portion of the file */
     MPI_File_open(MPI_COMM_WORLD, outputfile, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
@@ -414,6 +355,7 @@ int main (int argc, char *argv[]){
     free2darr(&local[0]);
     free2darr(&local[1]);
 
+    MPI_Type_free(&type);
     MPI_Type_free(&sendsubarrtype);
     MPI_Type_free(&recvsubarrtype);
     MPI_Type_free(&column);
@@ -434,7 +376,6 @@ void updateInternal(int start, int end, int ny, float *u1, float *u2)
 {
 
    int ix, iy;
-   #pragma omp for collapse(2) schedule(static,1)
    for (ix = start; ix <= end; ix++){ 
       for (iy = 2; iy <= ny-1; iy++){
          *(u2+ix*(ny+2)+iy) = *(u1+ix*(ny+2)+iy)  + 
@@ -456,17 +397,11 @@ void updateInternal(int start, int end, int ny, float *u1, float *u2)
  ****************************************************************************/
 void updateExternal(int start, int end, int ny,int right, int left,int up,int down, float *u1, float *u2)
 {
-
-    int endloop,
-        endny,
-        ix, iy, 
-        is; /* iteration start */
-    //int thread_rank = omp_get_thread_num();
+    int ix, iy;
     ny+=2;
     end+=2;
-
 	/// *** CALCULATING FIRST EXTERNAL ROW *** ///
-    if (up != MPI_PROC_NULL) //this is because if the block haw not an up neighbor we shouldnt's calculate halo
+    if (up != MPI_PROC_NULL) //this is because if the block haw not an up neighbor we shouldnt's caclulate halo
        ix = start;
     else
 	    ix = start+1;
@@ -476,14 +411,13 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
     else
         iy = 2;
 
+    int endny;
     if (right !=  MPI_PROC_NULL)
         endny = ny-3;
     else
         endny = ny-3;
 
-    is = iy;
-    #pragma omp for schedule(static,1)
-    for (iy=is; iy <= endny; iy++) {
+    for (; iy <= endny; iy++) 
          *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
@@ -492,10 +426,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
                          *(u1+ix*ny+iy-1) - 
                           2.0 * *(u1+ix*ny+iy));
 
-    }
-
-	/// *** CALCULATING LAST EXTERNAL ROW *** ///
-
+	/// CALCULATING LAST EXTERNAL ROW *** ///
     if (down != MPI_PROC_NULL)
        ix =  end-2;
     else
@@ -508,10 +439,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
         endny = ny-2;
     else
         endny = ny-3;
-
-    is=iy;
-    #pragma omp for schedule(static,1)
-    for (iy=is; iy <= endny; iy++) 
+    for (; iy <= endny; iy++) 
          *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
@@ -519,8 +447,6 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
                           parms.cy * (*(u1+ix*ny+iy+1) +
                          *(u1+ix*ny+iy-1) - 
                           2.0 * *(u1+ix*ny+iy));
-	
-
 	/// *** CALCULATING FIRST EXTERNAL COLUMN *** ///
 
     if (up != MPI_PROC_NULL) //this is because if the block haw not an up neighbor we shouldnt's caclulate halo
@@ -534,15 +460,13 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
     else
         iy = 2;
     
+    int endloop;
     if (down != MPI_PROC_NULL)
        endloop = end -2;
     else
        endloop = end -3; 
 
-    is = ix;
-
-    #pragma omp for schedule(static,1)
-    for (ix=is; ix<endloop; ix++)
+    for (; ix<endloop; ix++)
         *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + 
                           parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
@@ -550,7 +474,7 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
                           parms.cy * (*(u1+ix*ny+iy+1) +
                          *(u1+ix*ny+iy-1) - 
                           2.0 * *(u1+ix*ny+iy)); 
-	 /// *** CALCULATING LAST EXTERNAL COLUMN *** ///
+ /// *** CALCULATING LAST EXTERNAL COLUMN *** ///
 
    if (up != MPI_PROC_NULL) //this is because if the block haw not an up neighbor we shouldnt's caclulate halo
        ix = start;
@@ -566,16 +490,15 @@ void updateExternal(int start, int end, int ny,int right, int left,int up,int do
        endloop = end -2; //the down right corner is calculated from row calculation, so we don't need to calculate again
     else 
        endloop = end -3; // the down right corner is calculated from row calculation, so we don't need to calculate again
-
-    is = ix;
-    #pragma omp for schedule(static,1)
-    for (ix=is; ix<endloop; ix++)
+    //printf("end =%d, endloop=%d\n\n", end, endloop);
+    for (; ix<endloop; ix++)
        *(u2+ix*ny+iy) = *(u1+ix*ny+iy)  + parms.cx * (*(u1+(ix+1)*ny+iy) +
                           *(u1+(ix-1)*ny+iy) - 
                           2.0 * *(u1+ix*ny+iy)) +
                           parms.cy * (*(u1+ix*ny+iy+1) +
                          *(u1+ix*ny+iy-1) - 
                           2.0 * *(u1+ix*ny+iy)); 
+
 }
 
 
@@ -637,6 +560,47 @@ int checkSize(const char *filename){
 
     return sz == NYPROB*NXPROB*sizeof(float);
 }
+#if 0 
+int checkSize(const char *filename){
+    int x=0,y=0;
+    FILE *fp;
+    char *line = NULL, *token;
+    size_t len = 0;
+    ssize_t read;
+
+    fp = fopen(filename, "r");
+    if (fp == NULL)
+        return 0;
+
+    while ((read = getline(&line, &len, fp)) != -1) {
+        y++;
+
+        /* Count tokens */
+        x = 0;
+        token = strtok(line, " ");
+        while (token != NULL) {
+            x++;
+            token = strtok(NULL, " ");
+        }
+
+        /* Check if x is right */
+        if (x != NXPROB){
+            fclose(fp);
+            free(line);
+            return 0;
+        }
+    }
+
+    fclose(fp);
+    if (line)
+        free(line);
+    
+    /* Check y is right */
+    if(y != NYPROB)
+        return 0;
+    return 1;
+}
+#endif 
 
 int malloc2darr(float ***array, int n, int m) {
 
@@ -667,35 +631,3 @@ int free2darr(float ***array) {
 
     return 0;
 }
-
-/* TODO delete kai authn */
-void DUMMYDUMDUM(int nx, int ny, float *u) {
-int ix, iy;
-int n=0;
-
-for (ix = 0; ix <= nx-1; ix++) 
-  for (iy = 0; iy <= ny-1; iy++)
-     *(u+ix*ny+iy) = n++;
-}
-
-
-//returns 1 when arrays are identical and 0 when the are not identical
-int isIdentical(float *array1,float *array2, int rows,int columns){
-    int i,j;
-//    printf("ROWS =%d, COLUMNS= %d\n\n", rows,columns);
-    for (i=1; i<rows-1; i++){
-        for (j=1; j<columns-1; j++){
-//          printf("Is %6.1f = %6.1f  \n\n\n", *(array1+i*(columns)+j),*(array2+i*(columns)+j));
-
-//            if ( *(array1+i*(columns)+j) != *(array2+i*(columns)+j)){
-            if (fabs( *(array1+i*(columns)+j) - *(array2+i*(columns)+j)) > 0.01){
-//              printf("RETURNING 0 BECAUSE  %6.10f != %6.10f  \n\n\n", *(array1+i*(columns)+j),*(array2+i*(columns)+j));
-                return 0;
-            }
-        }
-    }
-    return 1;
-
-}
-
-
