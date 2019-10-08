@@ -29,8 +29,8 @@
 #include <string.h>
 #include <math.h>
 
-#define NXPROB      320                /* x dimension of problem grid */
-#define NYPROB      256                /* y dimension of problem grid */
+#define NXPROB      80                /* x dimension of problem grid */
+#define NYPROB      64                /* y dimension of problem grid */
 #define STEPS       100                /* number of time steps */
 #define BEGIN       1                  /* message tag */
 #define LTAG        2                  /* message tag */
@@ -270,7 +270,6 @@ int main (int argc, char *argv[]){
     MPI_Barrier(MPI_COMM_WORLD);
     start = MPI_Wtime();
 
-    iz = 0;
 
     MPI_Request RRequestR, RRequestL, RRequestU, RRequestD;
     MPI_Request SRequestR, SRequestL, SRequestU, SRequestD;
@@ -281,22 +280,25 @@ int main (int argc, char *argv[]){
     MPI_Type_commit(&column);
 
     /* Requests for persistent communication */
-    MPI_Request req[8];
-    MPI_Status  stat[8];
+    MPI_Request req[16];
+    MPI_Status  stat[16];
 
-    MPI_Recv_init(&(local[iz][1][0]), 1, column, left, 0, comm_cart, &(req[0]));
-    MPI_Recv_init(&(local[iz][1][columns+1]), 1, column, right, 0, comm_cart, &(req[1]));
-    MPI_Recv_init(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &(req[2])); 
-    MPI_Recv_init(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &(req[3])); 
+    for (iz=0 ; iz < 2 ; iz++){
+        MPI_Recv_init(&(local[iz][1][0]), 1, column, left, 0, comm_cart, &(req[iz*8+0]));
+        MPI_Recv_init(&(local[iz][1][columns+1]), 1, column, right, 0, comm_cart, &(req[iz*8+1]));
+        MPI_Recv_init(&(local[iz][rows+1][1]), columns, MPI_FLOAT, down, 0, comm_cart, &(req[iz*8+2])); 
+        MPI_Recv_init(&(local[iz][0][1]), columns, MPI_FLOAT, up,0, comm_cart, &(req[iz*8+3])); 
 
-    MPI_Send_init(&(local[iz][1][columns]), 1, column, right, 0, comm_cart, &req[4]);
-    MPI_Send_init(&(local[iz][1][1]), 1, column, left , 0, comm_cart, &req[5]);
-    MPI_Send_init(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &req[6]);
-    MPI_Send_init(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &req[7]);
+        MPI_Send_init(&(local[iz][1][columns]), 1, column, right, 0, comm_cart, &req[iz*8+4]);
+        MPI_Send_init(&(local[iz][1][1]), 1, column, left , 0, comm_cart, &req[iz*8+5]);
+        MPI_Send_init(&(local[iz][1][1]), columns, MPI_FLOAT, up, 0, comm_cart, &req[iz*8+6]);
+        MPI_Send_init(&(local[iz][rows][1]), columns, MPI_FLOAT, down ,0, comm_cart, &req[iz*8+7]);
+    }
     
-    MPI_Startall(8,req);
-    MPI_Waitall(8,req,MPI_STATUS_IGNORE);
+    MPI_Startall(16,req);
+    MPI_Waitall(16,req,MPI_STATUS_IGNORE);
 
+    iz = 0;
 
     /* Start thread_count threads */
      #pragma omp parallel num_threads(thread_count)
@@ -418,7 +420,7 @@ int main (int argc, char *argv[]){
     MPI_Type_free(&recvsubarrtype);
     MPI_Type_free(&column);
 
-    for(i=0; i<8 ; i++)
+    for(i=0; i<16 ; i++)
         MPI_Request_free(&(req[i]));
     
     MPI_Finalize();
