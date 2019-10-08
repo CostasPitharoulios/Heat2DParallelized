@@ -81,8 +81,6 @@ MPI_Status status;
       printf("Grid size: X= %d  Y= %d  Time steps= %d\n",NXPROB,NYPROB,STEPS);
       printf("Initializing grid and writing initial.dat file...\n");
       inidat(NXPROB, NYPROB, u);
-      //DUMMYDUMDUM(NXPROB, NYPROB, u);
-      prtdat(NXPROB, NYPROB, u, "initial.dat");
 
       /* Distribute work to workers.  Must first figure out how many rows to */
       /* send and what to do with extra rows.  */
