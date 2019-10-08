@@ -260,6 +260,7 @@ int main (int argc, char *argv[]){
     MPI_Type_commit(&column);
 
     /* Requests for persistent communication */
+    /* TODO 16 anti 8 */
     MPI_Request req[8];
     MPI_Status  stat[8];
 
